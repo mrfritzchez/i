@@ -147,7 +147,7 @@ function Utils.NameGenerator:Start()
                     end)
                 end
             end
-            task.wait(0.001)
+            task.wait(1)
         end
     end)
 end
@@ -1472,13 +1472,21 @@ elseif not useStudio then
 	end
 end
 
+-- Continuous 128-character dynamic name obfuscation for the root GUI instance.
+-- Only the top-level container name is rotated: internal child names (Main, Notifications,
+-- Loading, Title, Switch, etc.) are looked up by name throughout this script and must stay
+-- fixed, otherwise the whole interface breaks. Rotating the root name still prevents the
+-- ScreenGui from being found via CoreGui:GetChildren() / gethui():GetChildren() by a fixed name.
+Utils.NameGenerator:Register(Luva)
+Utils.NameGenerator:Start()
+
 if secureMode and not customAssetId then
 	secureNotify("default_asset", "Secure Mode", "You are using the default Luva asset ID. Set LUVA_ASSET_ID to a custom upload to avoid detection.")
 end
 
 do
 	local AssetPath = LuvaFolder.."/Assets"
-	local AssetBaseURL = "https://github.com/SiriusSoftwareLtd/Luva/blob/main/assets/"
+	local AssetBaseURL = "https://github.com/SiriusSoftwareLtd/Rayfield/blob/main/assets/"
 
 	local assetFiles = {
 		["111263549366178"] = AssetBaseURL.."111263549366178.png?raw=true",
