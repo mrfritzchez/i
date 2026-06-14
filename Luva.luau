@@ -1,3309 +1,4062 @@
-local DynamicNames = {}
-DynamicNames.__index = DynamicNames
+--[[
 
-local function GenerateDynamicName()
-    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    local special = "!@#$%^&*()_+-=[]{}|;':\",./<>?`~"
-    local allChars = chars .. special
-    local name = ""
-    for i = 1, 128 do
-        local rand = math.random(1, #allChars)
-        name = name .. string.sub(allChars, rand, rand)
-    end
-    return name
+	Luva Interface Suite
+	by Sirius
+
+	shlex  | Designing + Programming
+	iRay   | Programming
+	Max    | Programming
+	Damian | Programming
+
+]]
+
+if debugX then
+	warn('Initialising Luva')
 end
 
-local function CreateObfuscatedInstance(className, parent)
-    local instance = Instance.new(className)
-    instance.Name = GenerateDynamicName()
-    if parent then
-        instance.Parent = parent
-    end
-    return instance
+
+
+local function getService(name)
+	local service = game:GetService(name)
+	return if cloneref then cloneref(service) else service
 end
 
-local ExecutorDetector = {}
+-- Services
+local UserInputService = getService("UserInputService")
+local TweenService = getService("TweenService")
+local Players = getService("Players")
+local CoreGui = getService("CoreGui")
 
-function ExecutorDetector:Detect()
-    local executorInfo = {
-        Name = "Unknown",
-        UNC = 0,
-        sUNC = 0,
-        Identity = 0,
-        Level = 0,
-        SupportsFileSystem = false,
-        SupportsHttp = false,
-        SupportsClosure = false,
-        SupportsDebug = false
-    }
+-- Loads and executes a function hosted on a remote URL. Cancels the request if the requested URL takes too long to respond.
+-- Errors with the function are caught and logged to the output
+local function loadWithTimeout(url: string, timeout: number?): ...any
+	assert(type(url) == "string", "Expected string, got " .. type(url))
+	timeout = timeout or 5
+	local requestCompleted = false
+	local success, result = false, nil
 
-    if syn then
-        executorInfo.Name = "Synapse X"
-        executorInfo.UNC = 100
-        executorInfo.sUNC = 100
-        executorInfo.Identity = 8
-        executorInfo.Level = 8
-    elseif fluxus then
-        executorInfo.Name = "Fluxus"
-        executorInfo.UNC = 95
-        executorInfo.sUNC = 90
-        executorInfo.Identity = 8
-        executorInfo.Level = 8
-    elseif delta then
-        executorInfo.Name = "Delta"
-        executorInfo.UNC = 90
-        executorInfo.sUNC = 85
-        executorInfo.Identity = 7
-        executorInfo.Level = 7
-    elseif codex then
-        executorInfo.Name = "Codex"
-        executorInfo.UNC = 85
-        executorInfo.sUNC = 80
-        executorInfo.Identity = 7
-        executorInfo.Level = 7
-    elseif krnl then
-        executorInfo.Name = "KRNL"
-        executorInfo.UNC = 80
-        executorInfo.sUNC = 75
-        executorInfo.Identity = 6
-        executorInfo.Level = 6
-    elseif oxygen then
-        executorInfo.Name = "Oxygen"
-        executorInfo.UNC = 75
-        executorInfo.sUNC = 70
-        executorInfo.Identity = 6
-        executorInfo.Level = 6
-    elseif electron then
-        executorInfo.Name = "Electron"
-        executorInfo.UNC = 70
-        executorInfo.sUNC = 65
-        executorInfo.Identity = 5
-        executorInfo.Level = 5
-    elseif trigon then
-        executorInfo.Name = "Trigon"
-        executorInfo.UNC = 85
-        executorInfo.sUNC = 80
-        executorInfo.Identity = 7
-        executorInfo.Level = 7
-    elseif hydrogen then
-        executorInfo.Name = "Hydrogen"
-        executorInfo.UNC = 80
-        executorInfo.sUNC = 75
-        executorInfo.Identity = 6
-        executorInfo.Level = 6
-    elseif arceus then
-        executorInfo.Name = "Arceus X"
-        executorInfo.UNC = 60
-        executorInfo.sUNC = 55
-        executorInfo.Identity = 4
-        executorInfo.Level = 4
-    elseif codex then
-        executorInfo.Name = "Codex"
-        executorInfo.UNC = 85
-        executorInfo.sUNC = 80
-        executorInfo.Identity = 7
-        executorInfo.Level = 7
-    elseif getexecutorname then
-        local success, name = pcall(getexecutorname)
-        if success then
-            executorInfo.Name = name
-        end
-    end
+	local requestThread = task.spawn(function()
+		local fetchSuccess, fetchResult = pcall(game.HttpGet, game, url) -- game:HttpGet(url)
+		-- If the request fails the content can be empty, even if fetchSuccess is true
+		if not fetchSuccess or #fetchResult == 0 then
+			if #fetchResult == 0 then
+				fetchResult = "Empty response" -- Set the error message
+			end
+			success, result = false, fetchResult
+			requestCompleted = true
+			return
+		end
+		local content = fetchResult -- Fetched content
+		local execSuccess, execResult = pcall(function()
+			return loadstring(content)()
+		end)
+		success, result = execSuccess, execResult
+		requestCompleted = true
+	end)
 
-    if identifyexecutor then
-        local success, result = pcall(identifyexecutor)
-        if success then
-            executorInfo.Name = result
-        end
-    end
+	local timeoutThread = task.delay(timeout, function()
+		if not requestCompleted then
+			warn("Request for " .. url .. " timed out after " .. tostring(timeout) .. " seconds")
+			task.cancel(requestThread)
+			result = "Request timed out"
+			requestCompleted = true
+		end
+	end)
 
-    if getthreadidentity then
-        local success, result = pcall(getthreadidentity)
-        if success then
-            executorInfo.Identity = result
-            executorInfo.Level = result
-        end
-    elseif getidentity then
-        local success, result = pcall(getidentity)
-        if success then
-            executorInfo.Identity = result
-            executorInfo.Level = result
-        end
-    end
-
-    executorInfo.SupportsFileSystem = (writefile ~= nil and readfile ~= nil and
-                                       isfile ~= nil and isfolder ~= nil and
-                                       makefolder ~= nil and delfile ~= nil)
-
-    executorInfo.SupportsHttp = (request ~= nil or http_request ~= nil or
-                                 syn and syn.request ~= nil or
-                                 fluxus and fluxus.request ~= nil)
-
-    executorInfo.SupportsClosure = (newcclosure ~= nil or iscclosure ~= nil or
-                                    isluaclosure ~= nil)
-
-    executorInfo.SupportsDebug = (debug ~= nil and debug.getupvalues ~= nil and
-                                  debug.setupvalue ~= nil)
-
-    return executorInfo
+	-- Wait for completion or timeout
+	while not requestCompleted do
+		task.wait()
+	end
+	-- Cancel timeout thread if still running when request completes
+	if coroutine.status(timeoutThread) ~= "dead" then
+		task.cancel(timeoutThread)
+	end
+	if not success then
+		warn("Failed to process " .. tostring(url) .. ": " .. tostring(result))
+	end
+	return if success then result else nil
 end
 
-local AntiDetection = {}
-AntiDetection.__index = AntiDetection
-
-function AntiDetection.new()
-    local self = setmetatable({}, AntiDetection)
-    self.SecureMode = false
-    self.CustomAssetID = nil
-    self.DetectedHooks = {}
-    self.ProtectedInstances = {}
-    return self
+local requestsDisabled = false
+local customAssetId = nil
+local secureMode = false
+if getgenv then
+	local ok, result = pcall(function() return getgenv().DISABLE_LUVA_REQUESTS end)
+	if ok and result then requestsDisabled = true end
+	local ok2, result2 = pcall(function() return getgenv().LUVA_ASSET_ID end)
+	if ok2 and type(result2) == "number" then customAssetId = result2 end
+	local ok3, result3 = pcall(function() return getgenv().LUVA_SECURE end)
+	if ok3 and result3 then secureMode = true end
 end
 
-function AntiDetection:EnableSecureMode()
-    self.SecureMode = true
-
-    self:SetupHookProtection()
-
-    self:SetupInstanceProtection()
-
-    self:EnableNameObfuscation()
+if secureMode then
+	local _error = error
+	local _assert = assert
+	warn = function(...) end
+	print = function(...) end
+	error = function(_, level) _error("", level) end
+	assert = function(v, ...) return _assert(v) end
 end
 
-function AntiDetection:SetupHookProtection()
+local secureWarnings = {}
+local customAssets = {}
 
-    local function ProtectHook(original, hookName)
-        if not original then return end
-
-        local protected = newcclosure and newcclosure(function(...)
-            return original(...)
-        end) or function(...)
-            return original(...)
-        end
-
-        self.DetectedHooks[hookName] = {
-            Original = original,
-            Protected = protected
-        }
-
-        return protected
-    end
-
-    if game and game.GetService then
-        self._originalGetService = game.GetService
-    end
-
-    if Instance and Instance.new then
-        self._originalInstanceNew = Instance.new
-    end
-
-    if require then
-        self._originalRequire = require
-    end
+local function secureNotify(wType, title, content)
+	if secureWarnings[wType] then return end
+	secureWarnings[wType] = true
+	task.spawn(function()
+		while not LuvaLibrary or not LuvaLibrary.Notify do task.wait(0.5) end
+		LuvaLibrary:Notify({
+			Title = title,
+			Content = content,
+			Duration = 8,
+		})
+	end)
 end
+local InterfaceBuild = 'UU2NX'
+local Release = "Build 1.749"
+local LuvaFolder = "Luva"
+local ConfigurationFolder = LuvaFolder.."/Configurations"
+local ConfigurationExtension = ".rfld"
+local settingsTable = {
+	General = {
+		-- if needs be in order just make getSetting(name)
+		luvaOpen = {Type = 'bind', Value = 'K', Name = 'Luva Keybind'},
+		-- buildwarnings
+		-- luvaprompts
 
-function AntiDetection:ProtectInstance(instance)
-    if not instance then return end
-
-    instance.Name = GenerateDynamicName()
-
-    self.ProtectedInstances[instance] = true
-
-    if getrawmetatable and setreadonly then
-        local mt = getrawmetatable(game)
-        if mt then
-            local oldIndex = mt.__index
-            local oldNewIndex = mt.__newindex
-            local oldNamecall = mt.__namecall
-        end
-    end
-end
-
-function AntiDetection:SetupInstanceProtection()
-end
-
-function AntiDetection:EnableNameObfuscation()
-
-    spawn(function()
-        while self.SecureMode do
-            for instance, _ in pairs(self.ProtectedInstances) do
-                if instance and instance.Parent then
-                    pcall(function()
-                        instance.Name = GenerateDynamicName()
-                    end)
-                end
-            end
-            task.wait(0.001)
-        end
-    end)
-end
-
-function AntiDetection:CheckForCheaters()
-
-    local integrityChecks = {
-        function() return _G.LUVA_LOADED == true end,
-        function() return getfenv()["LUVA_SECURE"] == true end,
-        function() return game.CoreGui:FindFirstChildOfClass("ScreenGui") ~= nil end
-    }
-
-    for _, check in ipairs(integrityChecks) do
-        local success, result = pcall(check)
-        if not success or not result then
-
-            self:TriggerProtection()
-            return false
-        end
-    end
-
-    return true
-end
-
-function AntiDetection:TriggerProtection()
-
-    pcall(function()
-        if self.SecureMode then
-
-            for instance, _ in pairs(self.ProtectedInstances) do
-                if instance then
-                    pcall(function() instance:Destroy() end)
-                end
-            end
-
-            _G.LUVA_LOADED = nil
-            _G.LUVA = nil
-        end
-    end)
-end
-
-local Themes = {}
-Themes.Default = {
-    Name = "Default",
-    Background = Color3.fromRGB(30, 30, 30),
-    Topbar = Color3.fromRGB(25, 25, 25),
-    Sidebar = Color3.fromRGB(35, 35, 35),
-    Primary = Color3.fromRGB(88, 101, 242),
-    Secondary = Color3.fromRGB(60, 60, 60),
-    Accent = Color3.fromRGB(88, 101, 242),
-    Text = Color3.fromRGB(255, 255, 255),
-    TextDark = Color3.fromRGB(180, 180, 180),
-    ElementBackground = Color3.fromRGB(45, 45, 45),
-    ElementBackgroundHover = Color3.fromRGB(55, 55, 55),
-    ElementStroke = Color3.fromRGB(60, 60, 60),
-    Success = Color3.fromRGB(59, 165, 93),
-    Warning = Color3.fromRGB(250, 168, 26),
-    Error = Color3.fromRGB(237, 66, 69),
-    Info = Color3.fromRGB(59, 130, 246),
-    Shadow = Color3.fromRGB(0, 0, 0),
-    Glow = Color3.fromRGB(88, 101, 242)
+	},
+	System = {
+		usageAnalytics = {Type = 'toggle', Value = true, Name = 'Anonymised Analytics'},
+	}
 }
 
-Themes.Dark = {
-    Name = "Dark",
-    Background = Color3.fromRGB(20, 20, 20),
-    Topbar = Color3.fromRGB(15, 15, 15),
-    Sidebar = Color3.fromRGB(25, 25, 25),
-    Primary = Color3.fromRGB(114, 137, 218),
-    Secondary = Color3.fromRGB(40, 40, 40),
-    Accent = Color3.fromRGB(114, 137, 218),
-    Text = Color3.fromRGB(255, 255, 255),
-    TextDark = Color3.fromRGB(160, 160, 160),
-    ElementBackground = Color3.fromRGB(35, 35, 35),
-    ElementBackgroundHover = Color3.fromRGB(45, 45, 45),
-    ElementStroke = Color3.fromRGB(50, 50, 50),
-    Success = Color3.fromRGB(59, 165, 93),
-    Warning = Color3.fromRGB(250, 168, 26),
-    Error = Color3.fromRGB(237, 66, 69),
-    Info = Color3.fromRGB(59, 130, 246),
-    Shadow = Color3.fromRGB(0, 0, 0),
-    Glow = Color3.fromRGB(114, 137, 218)
+-- Settings that have been overridden by the developer. These will not be saved to the user's configuration file
+-- Overridden settings always take precedence over settings in the configuration file, and are cleared if the user changes the setting in the UI
+local overriddenSettings: { [string]: any } = {} -- For example, overriddenSettings["System.luvaOpen"] = "J"
+local function overrideSetting(category: string, name: string, value: any)
+	overriddenSettings[category .. "." .. name] = value
+end
+
+local function getSetting(category: string, name: string): any
+	if overriddenSettings[category .. "." .. name] ~= nil then
+		return overriddenSettings[category .. "." .. name]
+	elseif settingsTable[category][name] ~= nil then
+		return settingsTable[category][name].Value
+	end
+end
+
+-- If requests/analytics have been disabled by developer, set the user-facing setting to false as well
+if requestsDisabled then
+	overrideSetting("System", "usageAnalytics", false)
+end
+
+local HttpService = getService('HttpService')
+local RunService = getService('RunService')
+
+-- Environment Check
+local useStudio = RunService:IsStudio() or false
+
+local settingsCreated = false
+local settingsInitialized = false -- Whether the UI elements in the settings page have been set to the proper values
+local prompt = useStudio and require(script.Parent.prompt) or loadWithTimeout('https://raw.githubusercontent.com/SiriusSoftwareLtd/Sirius/refs/heads/request/prompt.lua')
+local requestFunc = (syn and syn.request) or (fluxus and fluxus.request) or (http and http.request) or http_request or request
+
+-- Validate prompt loaded correctly
+if not prompt and not useStudio then
+	warn("Failed to load prompt library, using fallback")
+	prompt = {
+		create = function() end -- No-op fallback
+	}
+end
+
+
+-- The function below provides a safe alternative for calling error-prone functions
+-- Especially useful for filesystem function (writefile, makefolder, etc.)
+local function callSafely(func, ...)
+	if func then
+		local success, result = pcall(func, ...)
+		if not success then
+			warn("Luva | Function failed with error: ", result)
+			return false
+		else
+			return result
+		end
+	end
+end
+
+-- Ensures a folder exists by creating it if needed
+local function ensureFolder(folderPath)
+	if isfolder and not callSafely(isfolder, folderPath) then
+		callSafely(makefolder, folderPath)
+	end
+end
+
+local function loadSettings()
+	local file = nil
+
+	local success, result =	pcall(function()
+		if callSafely(isfolder, LuvaFolder) then
+			if callSafely(isfile, LuvaFolder..'/settings'..ConfigurationExtension) then
+				file = callSafely(readfile, LuvaFolder..'/settings'..ConfigurationExtension)
+			end
+		end
+
+		-- for debug in studio
+		if useStudio then
+			file = [[
+	{"General":{"luvaOpen":{"Value":"K","Type":"bind","Name":"Luva Keybind","Element":{"HoldToInteract":false,"Ext":true,"Name":"Luva Keybind","Set":null,"CallOnChange":true,"Callback":null,"CurrentKeybind":"K"}}},"System":{"usageAnalytics":{"Value":false,"Type":"toggle","Name":"Anonymised Analytics","Element":{"Ext":true,"Name":"Anonymised Analytics","Set":null,"CurrentValue":false,"Callback":null}}}}
+]]
+		end
+
+		if file then
+			local decodeSuccess, decodedFile = pcall(function() return HttpService:JSONDecode(file) end)
+			if decodeSuccess then
+				file = decodedFile
+			else
+				file = {}
+			end
+		else
+			file = {}
+		end
+
+
+		if not settingsCreated then
+			return
+		end
+
+		-- Check if settings file has any entries
+		if next(file) ~= nil then
+			-- If it does, apply them
+			for categoryName, categoryTable in file do
+				for settingName, setting in categoryTable do
+					local default = settingsTable[categoryName] and settingsTable[categoryName][settingName]
+					if not default then continue end -- ignore keys not in settingsTable (old/renamed settings)
+					local settingType = typeof(default.Value)
+					-- Make sure setting has the correct type
+					if not (settingType == typeof(setting.Value)) then
+						warn("Luva | Error parsing settings file. '"..settingName.."' must be a "..settingType)
+						continue
+					end
+					default.Value = setting.Value
+				end
+			end
+		end
+		-- Apply the actual setting value to UI elements
+		for categoryName, categoryTable in settingsTable do
+			for settingName, setting in categoryTable do
+				if setting.Element then
+					setting.Element:Set(getSetting(categoryName, settingName))
+				end
+			end
+		end
+		settingsInitialized = true
+	end)
+
+	if not success then 
+		if writefile then
+			warn('Luva had an issue accessing configuration saving capability.')
+		end
+	end
+end
+
+if debugX then
+	warn('Now Loading Settings Configuration')
+end
+
+loadSettings()
+
+if debugX then
+	warn('Settings Loaded')
+end
+
+local promptUser = 2
+
+if promptUser == 1 and prompt and type(prompt.create) == "function" then
+	prompt.create(
+		'Be cautious when running scripts',
+	    [[Please be careful when running scripts from unknown developers. This script has already been ran.
+
+<font transparency='0.3'>Some scripts may steal your items or in-game goods.</font>]],
+		'Okay',
+		'',
+		function()
+
+		end
+	)
+end
+
+if debugX then
+	warn('Moving on to continue initialisation')
+end
+
+local LuvaLibrary = {
+	Flags = {},
+	Theme = {
+		Default = {
+			TextColor = Color3.fromRGB(240, 240, 240),
+
+			Background = Color3.fromRGB(25, 25, 25),
+			Topbar = Color3.fromRGB(34, 34, 34),
+			Shadow = Color3.fromRGB(20, 20, 20),
+
+			NotificationBackground = Color3.fromRGB(20, 20, 20),
+			NotificationActionsBackground = Color3.fromRGB(230, 230, 230),
+
+			TabBackground = Color3.fromRGB(80, 80, 80),
+			TabStroke = Color3.fromRGB(85, 85, 85),
+			TabBackgroundSelected = Color3.fromRGB(210, 210, 210),
+			TabTextColor = Color3.fromRGB(240, 240, 240),
+			SelectedTabTextColor = Color3.fromRGB(50, 50, 50),
+
+			ElementBackground = Color3.fromRGB(35, 35, 35),
+			ElementBackgroundHover = Color3.fromRGB(40, 40, 40),
+			SecondaryElementBackground = Color3.fromRGB(25, 25, 25),
+			ElementStroke = Color3.fromRGB(50, 50, 50),
+			SecondaryElementStroke = Color3.fromRGB(40, 40, 40),
+
+			SliderBackground = Color3.fromRGB(50, 138, 220),
+			SliderProgress = Color3.fromRGB(50, 138, 220),
+			SliderStroke = Color3.fromRGB(58, 163, 255),
+
+			ToggleBackground = Color3.fromRGB(30, 30, 30),
+			ToggleEnabled = Color3.fromRGB(0, 146, 214),
+			ToggleDisabled = Color3.fromRGB(100, 100, 100),
+			ToggleEnabledStroke = Color3.fromRGB(0, 170, 255),
+			ToggleDisabledStroke = Color3.fromRGB(125, 125, 125),
+			ToggleEnabledOuterStroke = Color3.fromRGB(100, 100, 100),
+			ToggleDisabledOuterStroke = Color3.fromRGB(65, 65, 65),
+
+			DropdownSelected = Color3.fromRGB(40, 40, 40),
+			DropdownUnselected = Color3.fromRGB(30, 30, 30),
+
+			InputBackground = Color3.fromRGB(30, 30, 30),
+			InputStroke = Color3.fromRGB(65, 65, 65),
+			PlaceholderColor = Color3.fromRGB(178, 178, 178)
+		},
+
+		Ocean = {
+			TextColor = Color3.fromRGB(230, 240, 240),
+
+			Background = Color3.fromRGB(20, 30, 30),
+			Topbar = Color3.fromRGB(25, 40, 40),
+			Shadow = Color3.fromRGB(15, 20, 20),
+
+			NotificationBackground = Color3.fromRGB(25, 35, 35),
+			NotificationActionsBackground = Color3.fromRGB(230, 240, 240),
+
+			TabBackground = Color3.fromRGB(40, 60, 60),
+			TabStroke = Color3.fromRGB(50, 70, 70),
+			TabBackgroundSelected = Color3.fromRGB(100, 180, 180),
+			TabTextColor = Color3.fromRGB(210, 230, 230),
+			SelectedTabTextColor = Color3.fromRGB(20, 50, 50),
+
+			ElementBackground = Color3.fromRGB(30, 50, 50),
+			ElementBackgroundHover = Color3.fromRGB(40, 60, 60),
+			SecondaryElementBackground = Color3.fromRGB(30, 45, 45),
+			ElementStroke = Color3.fromRGB(45, 70, 70),
+			SecondaryElementStroke = Color3.fromRGB(40, 65, 65),
+
+			SliderBackground = Color3.fromRGB(0, 110, 110),
+			SliderProgress = Color3.fromRGB(0, 140, 140),
+			SliderStroke = Color3.fromRGB(0, 160, 160),
+
+			ToggleBackground = Color3.fromRGB(30, 50, 50),
+			ToggleEnabled = Color3.fromRGB(0, 130, 130),
+			ToggleDisabled = Color3.fromRGB(70, 90, 90),
+			ToggleEnabledStroke = Color3.fromRGB(0, 160, 160),
+			ToggleDisabledStroke = Color3.fromRGB(85, 105, 105),
+			ToggleEnabledOuterStroke = Color3.fromRGB(50, 100, 100),
+			ToggleDisabledOuterStroke = Color3.fromRGB(45, 65, 65),
+
+			DropdownSelected = Color3.fromRGB(30, 60, 60),
+			DropdownUnselected = Color3.fromRGB(25, 40, 40),
+
+			InputBackground = Color3.fromRGB(30, 50, 50),
+			InputStroke = Color3.fromRGB(50, 70, 70),
+			PlaceholderColor = Color3.fromRGB(140, 160, 160)
+		},
+
+		AmberGlow = {
+			TextColor = Color3.fromRGB(255, 245, 230),
+
+			Background = Color3.fromRGB(45, 30, 20),
+			Topbar = Color3.fromRGB(55, 40, 25),
+			Shadow = Color3.fromRGB(35, 25, 15),
+
+			NotificationBackground = Color3.fromRGB(50, 35, 25),
+			NotificationActionsBackground = Color3.fromRGB(245, 230, 215),
+
+			TabBackground = Color3.fromRGB(75, 50, 35),
+			TabStroke = Color3.fromRGB(90, 60, 45),
+			TabBackgroundSelected = Color3.fromRGB(230, 180, 100),
+			TabTextColor = Color3.fromRGB(250, 220, 200),
+			SelectedTabTextColor = Color3.fromRGB(50, 30, 10),
+
+			ElementBackground = Color3.fromRGB(60, 45, 35),
+			ElementBackgroundHover = Color3.fromRGB(70, 50, 40),
+			SecondaryElementBackground = Color3.fromRGB(55, 40, 30),
+			ElementStroke = Color3.fromRGB(85, 60, 45),
+			SecondaryElementStroke = Color3.fromRGB(75, 50, 35),
+
+			SliderBackground = Color3.fromRGB(220, 130, 60),
+			SliderProgress = Color3.fromRGB(250, 150, 75),
+			SliderStroke = Color3.fromRGB(255, 170, 85),
+
+			ToggleBackground = Color3.fromRGB(55, 40, 30),
+			ToggleEnabled = Color3.fromRGB(240, 130, 30),
+			ToggleDisabled = Color3.fromRGB(90, 70, 60),
+			ToggleEnabledStroke = Color3.fromRGB(255, 160, 50),
+			ToggleDisabledStroke = Color3.fromRGB(110, 85, 75),
+			ToggleEnabledOuterStroke = Color3.fromRGB(200, 100, 50),
+			ToggleDisabledOuterStroke = Color3.fromRGB(75, 60, 55),
+
+			DropdownSelected = Color3.fromRGB(70, 50, 40),
+			DropdownUnselected = Color3.fromRGB(55, 40, 30),
+
+			InputBackground = Color3.fromRGB(60, 45, 35),
+			InputStroke = Color3.fromRGB(90, 65, 50),
+			PlaceholderColor = Color3.fromRGB(190, 150, 130)
+		},
+
+		Light = {
+			TextColor = Color3.fromRGB(40, 40, 40),
+
+			Background = Color3.fromRGB(245, 245, 245),
+			Topbar = Color3.fromRGB(230, 230, 230),
+			Shadow = Color3.fromRGB(200, 200, 200),
+
+			NotificationBackground = Color3.fromRGB(250, 250, 250),
+			NotificationActionsBackground = Color3.fromRGB(240, 240, 240),
+
+			TabBackground = Color3.fromRGB(235, 235, 235),
+			TabStroke = Color3.fromRGB(215, 215, 215),
+			TabBackgroundSelected = Color3.fromRGB(255, 255, 255),
+			TabTextColor = Color3.fromRGB(80, 80, 80),
+			SelectedTabTextColor = Color3.fromRGB(0, 0, 0),
+
+			ElementBackground = Color3.fromRGB(240, 240, 240),
+			ElementBackgroundHover = Color3.fromRGB(225, 225, 225),
+			SecondaryElementBackground = Color3.fromRGB(235, 235, 235),
+			ElementStroke = Color3.fromRGB(210, 210, 210),
+			SecondaryElementStroke = Color3.fromRGB(210, 210, 210),
+
+			SliderBackground = Color3.fromRGB(150, 180, 220),
+			SliderProgress = Color3.fromRGB(100, 150, 200), 
+			SliderStroke = Color3.fromRGB(120, 170, 220),
+
+			ToggleBackground = Color3.fromRGB(220, 220, 220),
+			ToggleEnabled = Color3.fromRGB(0, 146, 214),
+			ToggleDisabled = Color3.fromRGB(150, 150, 150),
+			ToggleEnabledStroke = Color3.fromRGB(0, 170, 255),
+			ToggleDisabledStroke = Color3.fromRGB(170, 170, 170),
+			ToggleEnabledOuterStroke = Color3.fromRGB(100, 100, 100),
+			ToggleDisabledOuterStroke = Color3.fromRGB(180, 180, 180),
+
+			DropdownSelected = Color3.fromRGB(230, 230, 230),
+			DropdownUnselected = Color3.fromRGB(220, 220, 220),
+
+			InputBackground = Color3.fromRGB(240, 240, 240),
+			InputStroke = Color3.fromRGB(180, 180, 180),
+			PlaceholderColor = Color3.fromRGB(140, 140, 140)
+		},
+
+		Amethyst = {
+			TextColor = Color3.fromRGB(240, 240, 240),
+
+			Background = Color3.fromRGB(30, 20, 40),
+			Topbar = Color3.fromRGB(40, 25, 50),
+			Shadow = Color3.fromRGB(20, 15, 30),
+
+			NotificationBackground = Color3.fromRGB(35, 20, 40),
+			NotificationActionsBackground = Color3.fromRGB(240, 240, 250),
+
+			TabBackground = Color3.fromRGB(60, 40, 80),
+			TabStroke = Color3.fromRGB(70, 45, 90),
+			TabBackgroundSelected = Color3.fromRGB(180, 140, 200),
+			TabTextColor = Color3.fromRGB(230, 230, 240),
+			SelectedTabTextColor = Color3.fromRGB(50, 20, 50),
+
+			ElementBackground = Color3.fromRGB(45, 30, 60),
+			ElementBackgroundHover = Color3.fromRGB(50, 35, 70),
+			SecondaryElementBackground = Color3.fromRGB(40, 30, 55),
+			ElementStroke = Color3.fromRGB(70, 50, 85),
+			SecondaryElementStroke = Color3.fromRGB(65, 45, 80),
+
+			SliderBackground = Color3.fromRGB(100, 60, 150),
+			SliderProgress = Color3.fromRGB(130, 80, 180),
+			SliderStroke = Color3.fromRGB(150, 100, 200),
+
+			ToggleBackground = Color3.fromRGB(45, 30, 55),
+			ToggleEnabled = Color3.fromRGB(120, 60, 150),
+			ToggleDisabled = Color3.fromRGB(94, 47, 117),
+			ToggleEnabledStroke = Color3.fromRGB(140, 80, 170),
+			ToggleDisabledStroke = Color3.fromRGB(124, 71, 150),
+			ToggleEnabledOuterStroke = Color3.fromRGB(90, 40, 120),
+			ToggleDisabledOuterStroke = Color3.fromRGB(80, 50, 110),
+
+			DropdownSelected = Color3.fromRGB(50, 35, 70),
+			DropdownUnselected = Color3.fromRGB(35, 25, 50),
+
+			InputBackground = Color3.fromRGB(45, 30, 60),
+			InputStroke = Color3.fromRGB(80, 50, 110),
+			PlaceholderColor = Color3.fromRGB(178, 150, 200)
+		},
+
+		Green = {
+			TextColor = Color3.fromRGB(30, 60, 30),
+
+			Background = Color3.fromRGB(235, 245, 235),
+			Topbar = Color3.fromRGB(210, 230, 210),
+			Shadow = Color3.fromRGB(200, 220, 200),
+
+			NotificationBackground = Color3.fromRGB(240, 250, 240),
+			NotificationActionsBackground = Color3.fromRGB(220, 235, 220),
+
+			TabBackground = Color3.fromRGB(215, 235, 215),
+			TabStroke = Color3.fromRGB(190, 210, 190),
+			TabBackgroundSelected = Color3.fromRGB(245, 255, 245),
+			TabTextColor = Color3.fromRGB(50, 80, 50),
+			SelectedTabTextColor = Color3.fromRGB(20, 60, 20),
+
+			ElementBackground = Color3.fromRGB(225, 240, 225),
+			ElementBackgroundHover = Color3.fromRGB(210, 225, 210),
+			SecondaryElementBackground = Color3.fromRGB(235, 245, 235), 
+			ElementStroke = Color3.fromRGB(180, 200, 180),
+			SecondaryElementStroke = Color3.fromRGB(180, 200, 180),
+
+			SliderBackground = Color3.fromRGB(90, 160, 90),
+			SliderProgress = Color3.fromRGB(70, 130, 70),
+			SliderStroke = Color3.fromRGB(100, 180, 100),
+
+			ToggleBackground = Color3.fromRGB(215, 235, 215),
+			ToggleEnabled = Color3.fromRGB(60, 130, 60),
+			ToggleDisabled = Color3.fromRGB(150, 175, 150),
+			ToggleEnabledStroke = Color3.fromRGB(80, 150, 80),
+			ToggleDisabledStroke = Color3.fromRGB(130, 150, 130),
+			ToggleEnabledOuterStroke = Color3.fromRGB(100, 160, 100),
+			ToggleDisabledOuterStroke = Color3.fromRGB(160, 180, 160),
+
+			DropdownSelected = Color3.fromRGB(225, 240, 225),
+			DropdownUnselected = Color3.fromRGB(210, 225, 210),
+
+			InputBackground = Color3.fromRGB(235, 245, 235),
+			InputStroke = Color3.fromRGB(180, 200, 180),
+			PlaceholderColor = Color3.fromRGB(120, 140, 120)
+		},
+
+		Bloom = {
+			TextColor = Color3.fromRGB(60, 40, 50),
+
+			Background = Color3.fromRGB(255, 240, 245),
+			Topbar = Color3.fromRGB(250, 220, 225),
+			Shadow = Color3.fromRGB(230, 190, 195),
+
+			NotificationBackground = Color3.fromRGB(255, 235, 240),
+			NotificationActionsBackground = Color3.fromRGB(245, 215, 225),
+
+			TabBackground = Color3.fromRGB(240, 210, 220),
+			TabStroke = Color3.fromRGB(230, 200, 210),
+			TabBackgroundSelected = Color3.fromRGB(255, 225, 235),
+			TabTextColor = Color3.fromRGB(80, 40, 60),
+			SelectedTabTextColor = Color3.fromRGB(50, 30, 50),
+
+			ElementBackground = Color3.fromRGB(255, 235, 240),
+			ElementBackgroundHover = Color3.fromRGB(245, 220, 230),
+			SecondaryElementBackground = Color3.fromRGB(255, 235, 240), 
+			ElementStroke = Color3.fromRGB(230, 200, 210),
+			SecondaryElementStroke = Color3.fromRGB(230, 200, 210),
+
+			SliderBackground = Color3.fromRGB(240, 130, 160),
+			SliderProgress = Color3.fromRGB(250, 160, 180),
+			SliderStroke = Color3.fromRGB(255, 180, 200),
+
+			ToggleBackground = Color3.fromRGB(240, 210, 220),
+			ToggleEnabled = Color3.fromRGB(255, 140, 170),
+			ToggleDisabled = Color3.fromRGB(200, 180, 185),
+			ToggleEnabledStroke = Color3.fromRGB(250, 160, 190),
+			ToggleDisabledStroke = Color3.fromRGB(210, 180, 190),
+			ToggleEnabledOuterStroke = Color3.fromRGB(220, 160, 180),
+			ToggleDisabledOuterStroke = Color3.fromRGB(190, 170, 180),
+
+			DropdownSelected = Color3.fromRGB(250, 220, 225),
+			DropdownUnselected = Color3.fromRGB(240, 210, 220),
+
+			InputBackground = Color3.fromRGB(255, 235, 240),
+			InputStroke = Color3.fromRGB(220, 190, 200),
+			PlaceholderColor = Color3.fromRGB(170, 130, 140)
+		},
+
+		DarkBlue = {
+			TextColor = Color3.fromRGB(230, 230, 230),
+
+			Background = Color3.fromRGB(20, 25, 30),
+			Topbar = Color3.fromRGB(30, 35, 40),
+			Shadow = Color3.fromRGB(15, 20, 25),
+
+			NotificationBackground = Color3.fromRGB(25, 30, 35),
+			NotificationActionsBackground = Color3.fromRGB(45, 50, 55),
+
+			TabBackground = Color3.fromRGB(35, 40, 45),
+			TabStroke = Color3.fromRGB(45, 50, 60),
+			TabBackgroundSelected = Color3.fromRGB(40, 70, 100),
+			TabTextColor = Color3.fromRGB(200, 200, 200),
+			SelectedTabTextColor = Color3.fromRGB(255, 255, 255),
+
+			ElementBackground = Color3.fromRGB(30, 35, 40),
+			ElementBackgroundHover = Color3.fromRGB(40, 45, 50),
+			SecondaryElementBackground = Color3.fromRGB(35, 40, 45), 
+			ElementStroke = Color3.fromRGB(45, 50, 60),
+			SecondaryElementStroke = Color3.fromRGB(40, 45, 55),
+
+			SliderBackground = Color3.fromRGB(0, 90, 180),
+			SliderProgress = Color3.fromRGB(0, 120, 210),
+			SliderStroke = Color3.fromRGB(0, 150, 240),
+
+			ToggleBackground = Color3.fromRGB(35, 40, 45),
+			ToggleEnabled = Color3.fromRGB(0, 120, 210),
+			ToggleDisabled = Color3.fromRGB(70, 70, 80),
+			ToggleEnabledStroke = Color3.fromRGB(0, 150, 240),
+			ToggleDisabledStroke = Color3.fromRGB(75, 75, 85),
+			ToggleEnabledOuterStroke = Color3.fromRGB(20, 100, 180), 
+			ToggleDisabledOuterStroke = Color3.fromRGB(55, 55, 65),
+
+			DropdownSelected = Color3.fromRGB(30, 70, 90),
+			DropdownUnselected = Color3.fromRGB(25, 30, 35),
+
+			InputBackground = Color3.fromRGB(25, 30, 35),
+			InputStroke = Color3.fromRGB(45, 50, 60), 
+			PlaceholderColor = Color3.fromRGB(150, 150, 160)
+		},
+
+		Serenity = {
+			TextColor = Color3.fromRGB(50, 55, 60),
+			Background = Color3.fromRGB(240, 245, 250),
+			Topbar = Color3.fromRGB(215, 225, 235),
+			Shadow = Color3.fromRGB(200, 210, 220),
+
+			NotificationBackground = Color3.fromRGB(210, 220, 230),
+			NotificationActionsBackground = Color3.fromRGB(225, 230, 240),
+
+			TabBackground = Color3.fromRGB(200, 210, 220),
+			TabStroke = Color3.fromRGB(180, 190, 200),
+			TabBackgroundSelected = Color3.fromRGB(175, 185, 200),
+			TabTextColor = Color3.fromRGB(50, 55, 60),
+			SelectedTabTextColor = Color3.fromRGB(30, 35, 40),
+
+			ElementBackground = Color3.fromRGB(210, 220, 230),
+			ElementBackgroundHover = Color3.fromRGB(220, 230, 240),
+			SecondaryElementBackground = Color3.fromRGB(200, 210, 220),
+			ElementStroke = Color3.fromRGB(190, 200, 210),
+			SecondaryElementStroke = Color3.fromRGB(180, 190, 200),
+
+			SliderBackground = Color3.fromRGB(200, 220, 235),  -- Lighter shade
+			SliderProgress = Color3.fromRGB(70, 130, 180),
+			SliderStroke = Color3.fromRGB(150, 180, 220),
+
+			ToggleBackground = Color3.fromRGB(210, 220, 230),
+			ToggleEnabled = Color3.fromRGB(70, 160, 210),
+			ToggleDisabled = Color3.fromRGB(180, 180, 180),
+			ToggleEnabledStroke = Color3.fromRGB(60, 150, 200),
+			ToggleDisabledStroke = Color3.fromRGB(140, 140, 140),
+			ToggleEnabledOuterStroke = Color3.fromRGB(100, 120, 140),
+			ToggleDisabledOuterStroke = Color3.fromRGB(120, 120, 130),
+
+			DropdownSelected = Color3.fromRGB(220, 230, 240),
+			DropdownUnselected = Color3.fromRGB(200, 210, 220),
+
+			InputBackground = Color3.fromRGB(220, 230, 240),
+			InputStroke = Color3.fromRGB(180, 190, 200),
+			PlaceholderColor = Color3.fromRGB(150, 150, 150)
+		},
+	}
 }
 
-Themes.Light = {
-    Name = "Light",
-    Background = Color3.fromRGB(245, 245, 245),
-    Topbar = Color3.fromRGB(235, 235, 235),
-    Sidebar = Color3.fromRGB(255, 255, 255),
-    Primary = Color3.fromRGB(88, 101, 242),
-    Secondary = Color3.fromRGB(220, 220, 220),
-    Accent = Color3.fromRGB(88, 101, 242),
-    Text = Color3.fromRGB(30, 30, 30),
-    TextDark = Color3.fromRGB(100, 100, 100),
-    ElementBackground = Color3.fromRGB(255, 255, 255),
-    ElementBackgroundHover = Color3.fromRGB(240, 240, 240),
-    ElementStroke = Color3.fromRGB(200, 200, 200),
-    Success = Color3.fromRGB(59, 165, 93),
-    Warning = Color3.fromRGB(250, 168, 26),
-    Error = Color3.fromRGB(237, 66, 69),
-    Info = Color3.fromRGB(59, 130, 246),
-    Shadow = Color3.fromRGB(200, 200, 200),
-    Glow = Color3.fromRGB(88, 101, 242)
-}
-
-Themes.Midnight = {
-    Name = "Midnight",
-    Background = Color3.fromRGB(10, 10, 20),
-    Topbar = Color3.fromRGB(5, 5, 15),
-    Sidebar = Color3.fromRGB(15, 15, 25),
-    Primary = Color3.fromRGB(138, 43, 226),
-    Secondary = Color3.fromRGB(25, 25, 40),
-    Accent = Color3.fromRGB(138, 43, 226),
-    Text = Color3.fromRGB(230, 230, 255),
-    TextDark = Color3.fromRGB(150, 150, 200),
-    ElementBackground = Color3.fromRGB(20, 20, 35),
-    ElementBackgroundHover = Color3.fromRGB(30, 30, 50),
-    ElementStroke = Color3.fromRGB(40, 40, 60),
-    Success = Color3.fromRGB(0, 255, 150),
-    Warning = Color3.fromRGB(255, 200, 0),
-    Error = Color3.fromRGB(255, 50, 100),
-    Info = Color3.fromRGB(100, 150, 255),
-    Shadow = Color3.fromRGB(0, 0, 10),
-    Glow = Color3.fromRGB(138, 43, 226)
-}
-
-Themes.Ocean = {
-    Name = "Ocean",
-    Background = Color3.fromRGB(15, 25, 35),
-    Topbar = Color3.fromRGB(10, 20, 30),
-    Sidebar = Color3.fromRGB(20, 30, 40),
-    Primary = Color3.fromRGB(0, 150, 200),
-    Secondary = Color3.fromRGB(25, 35, 45),
-    Accent = Color3.fromRGB(0, 200, 255),
-    Text = Color3.fromRGB(220, 240, 255),
-    TextDark = Color3.fromRGB(140, 170, 200),
-    ElementBackground = Color3.fromRGB(25, 35, 45),
-    ElementBackgroundHover = Color3.fromRGB(35, 50, 65),
-    ElementStroke = Color3.fromRGB(40, 55, 70),
-    Success = Color3.fromRGB(0, 255, 150),
-    Warning = Color3.fromRGB(255, 200, 0),
-    Error = Color3.fromRGB(255, 80, 80),
-    Info = Color3.fromRGB(80, 180, 255),
-    Shadow = Color3.fromRGB(0, 5, 15),
-    Glow = Color3.fromRGB(0, 200, 255)
-}
-
-Themes.Crimson = {
-    Name = "Crimson",
-    Background = Color3.fromRGB(30, 10, 10),
-    Topbar = Color3.fromRGB(25, 5, 5),
-    Sidebar = Color3.fromRGB(35, 15, 15),
-    Primary = Color3.fromRGB(220, 20, 60),
-    Secondary = Color3.fromRGB(45, 20, 20),
-    Accent = Color3.fromRGB(255, 50, 80),
-    Text = Color3.fromRGB(255, 220, 220),
-    TextDark = Color3.fromRGB(200, 150, 150),
-    ElementBackground = Color3.fromRGB(45, 20, 20),
-    ElementBackgroundHover = Color3.fromRGB(60, 30, 30),
-    ElementStroke = Color3.fromRGB(70, 35, 35),
-    Success = Color3.fromRGB(50, 255, 150),
-    Warning = Color3.fromRGB(255, 200, 50),
-    Error = Color3.fromRGB(255, 50, 50),
-    Info = Color3.fromRGB(255, 100, 100),
-    Shadow = Color3.fromRGB(10, 0, 0),
-    Glow = Color3.fromRGB(255, 50, 80)
-}
-
-Themes.Forest = {
-    Name = "Forest",
-    Background = Color3.fromRGB(15, 30, 15),
-    Topbar = Color3.fromRGB(10, 25, 10),
-    Sidebar = Color3.fromRGB(20, 35, 20),
-    Primary = Color3.fromRGB(34, 197, 94),
-    Secondary = Color3.fromRGB(25, 45, 25),
-    Accent = Color3.fromRGB(50, 255, 100),
-    Text = Color3.fromRGB(220, 255, 220),
-    TextDark = Color3.fromRGB(150, 200, 150),
-    ElementBackground = Color3.fromRGB(25, 40, 25),
-    ElementBackgroundHover = Color3.fromRGB(35, 55, 35),
-    ElementStroke = Color3.fromRGB(40, 60, 40),
-    Success = Color3.fromRGB(50, 255, 100),
-    Warning = Color3.fromRGB(255, 200, 50),
-    Error = Color3.fromRGB(255, 80, 80),
-    Info = Color3.fromRGB(100, 255, 150),
-    Shadow = Color3.fromRGB(0, 10, 0),
-    Glow = Color3.fromRGB(50, 255, 100)
-}
-
-Themes.Sunset = {
-    Name = "Sunset",
-    Background = Color3.fromRGB(30, 20, 15),
-    Topbar = Color3.fromRGB(25, 15, 10),
-    Sidebar = Color3.fromRGB(35, 25, 20),
-    Primary = Color3.fromRGB(255, 140, 50),
-    Secondary = Color3.fromRGB(45, 30, 25),
-    Accent = Color3.fromRGB(255, 180, 80),
-    Text = Color3.fromRGB(255, 240, 220),
-    TextDark = Color3.fromRGB(200, 170, 140),
-    ElementBackground = Color3.fromRGB(45, 30, 25),
-    ElementBackgroundHover = Color3.fromRGB(60, 40, 35),
-    ElementStroke = Color3.fromRGB(70, 50, 40),
-    Success = Color3.fromRGB(100, 255, 150),
-    Warning = Color3.fromRGB(255, 220, 50),
-    Error = Color3.fromRGB(255, 80, 80),
-    Info = Color3.fromRGB(255, 180, 100),
-    Shadow = Color3.fromRGB(15, 5, 0),
-    Glow = Color3.fromRGB(255, 180, 80)
-}
-
-Themes.Amethyst = {
-    Name = "Amethyst",
-    Background = Color3.fromRGB(25, 15, 35),
-    Topbar = Color3.fromRGB(20, 10, 30),
-    Sidebar = Color3.fromRGB(30, 20, 40),
-    Primary = Color3.fromRGB(155, 89, 182),
-    Secondary = Color3.fromRGB(40, 25, 50),
-    Accent = Color3.fromRGB(175, 122, 197),
-    Text = Color3.fromRGB(240, 230, 255),
-    TextDark = Color3.fromRGB(180, 150, 210),
-    ElementBackground = Color3.fromRGB(35, 20, 45),
-    ElementBackgroundHover = Color3.fromRGB(45, 30, 60),
-    ElementStroke = Color3.fromRGB(55, 35, 70),
-    Success = Color3.fromRGB(100, 255, 150),
-    Warning = Color3.fromRGB(255, 200, 100),
-    Error = Color3.fromRGB(255, 100, 100),
-    Info = Color3.fromRGB(180, 130, 255),
-    Shadow = Color3.fromRGB(10, 0, 20),
-    Glow = Color3.fromRGB(155, 89, 182)
-}
-
-Themes.Aqua = {
-    Name = "Aqua",
-    Background = Color3.fromRGB(15, 30, 30),
-    Topbar = Color3.fromRGB(10, 25, 25),
-    Sidebar = Color3.fromRGB(20, 35, 35),
-    Primary = Color3.fromRGB(0, 200, 180),
-    Secondary = Color3.fromRGB(25, 45, 45),
-    Accent = Color3.fromRGB(0, 255, 220),
-    Text = Color3.fromRGB(220, 255, 250),
-    TextDark = Color3.fromRGB(150, 200, 190),
-    ElementBackground = Color3.fromRGB(25, 40, 40),
-    ElementBackgroundHover = Color3.fromRGB(35, 55, 55),
-    ElementStroke = Color3.fromRGB(40, 60, 60),
-    Success = Color3.fromRGB(50, 255, 150),
-    Warning = Color3.fromRGB(255, 220, 50),
-    Error = Color3.fromRGB(255, 100, 100),
-    Info = Color3.fromRGB(100, 255, 230),
-    Shadow = Color3.fromRGB(0, 15, 15),
-    Glow = Color3.fromRGB(0, 255, 220)
-}
-
-Themes.Rose = {
-    Name = "Rose",
-    Background = Color3.fromRGB(35, 20, 25),
-    Topbar = Color3.fromRGB(30, 15, 20),
-    Sidebar = Color3.fromRGB(40, 25, 30),
-    Primary = Color3.fromRGB(255, 105, 130),
-    Secondary = Color3.fromRGB(50, 30, 35),
-    Accent = Color3.fromRGB(255, 150, 170),
-    Text = Color3.fromRGB(255, 230, 235),
-    TextDark = Color3.fromRGB(210, 160, 170),
-    ElementBackground = Color3.fromRGB(45, 25, 30),
-    ElementBackgroundHover = Color3.fromRGB(60, 35, 45),
-    ElementStroke = Color3.fromRGB(70, 40, 50),
-    Success = Color3.fromRGB(150, 255, 150),
-    Warning = Color3.fromRGB(255, 220, 100),
-    Error = Color3.fromRGB(255, 100, 100),
-    Info = Color3.fromRGB(255, 180, 200),
-    Shadow = Color3.fromRGB(20, 5, 10),
-    Glow = Color3.fromRGB(255, 150, 170)
-}
-
-Themes.Gold = {
-    Name = "Gold",
-    Background = Color3.fromRGB(30, 25, 15),
-    Topbar = Color3.fromRGB(25, 20, 10),
-    Sidebar = Color3.fromRGB(35, 30, 20),
-    Primary = Color3.fromRGB(255, 190, 50),
-    Secondary = Color3.fromRGB(45, 38, 25),
-    Accent = Color3.fromRGB(255, 215, 100),
-    Text = Color3.fromRGB(255, 245, 220),
-    TextDark = Color3.fromRGB(200, 180, 140),
-    ElementBackground = Color3.fromRGB(40, 33, 20),
-    ElementBackgroundHover = Color3.fromRGB(55, 45, 30),
-    ElementStroke = Color3.fromRGB(65, 55, 35),
-    Success = Color3.fromRGB(150, 255, 150),
-    Warning = Color3.fromRGB(255, 220, 50),
-    Error = Color3.fromRGB(255, 100, 100),
-    Info = Color3.fromRGB(255, 200, 100),
-    Shadow = Color3.fromRGB(15, 10, 0),
-    Glow = Color3.fromRGB(255, 215, 100)
-}
-
-Themes.Ice = {
-    Name = "Ice",
-    Background = Color3.fromRGB(20, 25, 30),
-    Topbar = Color3.fromRGB(15, 20, 25),
-    Sidebar = Color3.fromRGB(25, 30, 35),
-    Primary = Color3.fromRGB(180, 210, 255),
-    Secondary = Color3.fromRGB(30, 35, 40),
-    Accent = Color3.fromRGB(200, 230, 255),
-    Text = Color3.fromRGB(235, 245, 255),
-    TextDark = Color3.fromRGB(160, 180, 210),
-    ElementBackground = Color3.fromRGB(28, 33, 38),
-    ElementBackgroundHover = Color3.fromRGB(38, 45, 52),
-    ElementStroke = Color3.fromRGB(45, 52, 60),
-    Success = Color3.fromRGB(100, 255, 150),
-    Warning = Color3.fromRGB(255, 220, 100),
-    Error = Color3.fromRGB(255, 120, 120),
-    Info = Color3.fromRGB(180, 220, 255),
-    Shadow = Color3.fromRGB(5, 10, 15),
-    Glow = Color3.fromRGB(200, 230, 255)
-}
-
-Themes.Neon = {
-    Name = "Neon",
-    Background = Color3.fromRGB(10, 10, 15),
-    Topbar = Color3.fromRGB(5, 5, 10),
-    Sidebar = Color3.fromRGB(15, 15, 20),
-    Primary = Color3.fromRGB(0, 255, 150),
-    Secondary = Color3.fromRGB(20, 20, 25),
-    Accent = Color3.fromRGB(0, 255, 200),
-    Text = Color3.fromRGB(220, 255, 240),
-    TextDark = Color3.fromRGB(140, 180, 160),
-    ElementBackground = Color3.fromRGB(15, 15, 20),
-    ElementBackgroundHover = Color3.fromRGB(25, 25, 35),
-    ElementStroke = Color3.fromRGB(0, 200, 120),
-    Success = Color3.fromRGB(0, 255, 100),
-    Warning = Color3.fromRGB(255, 255, 0),
-    Error = Color3.fromRGB(255, 50, 50),
-    Info = Color3.fromRGB(0, 255, 200),
-    Shadow = Color3.fromRGB(0, 5, 0),
-    Glow = Color3.fromRGB(0, 255, 150)
-}
-
-Themes.Coffee = {
-    Name = "Coffee",
-    Background = Color3.fromRGB(35, 28, 22),
-    Topbar = Color3.fromRGB(30, 23, 17),
-    Sidebar = Color3.fromRGB(40, 33, 27),
-    Primary = Color3.fromRGB(180, 130, 80),
-    Secondary = Color3.fromRGB(45, 38, 32),
-    Accent = Color3.fromRGB(210, 160, 100),
-    Text = Color3.fromRGB(240, 225, 210),
-    TextDark = Color3.fromRGB(180, 160, 140),
-    ElementBackground = Color3.fromRGB(42, 35, 28),
-    ElementBackgroundHover = Color3.fromRGB(55, 45, 38),
-    ElementStroke = Color3.fromRGB(65, 55, 45),
-    Success = Color3.fromRGB(130, 200, 100),
-    Warning = Color3.fromRGB(230, 190, 80),
-    Error = Color3.fromRGB(210, 100, 80),
-    Info = Color3.fromRGB(190, 160, 120),
-    Shadow = Color3.fromRGB(15, 10, 5),
-    Glow = Color3.fromRGB(210, 160, 100)
-}
-
-Themes.Sakura = {
-    Name = "Sakura",
-    Background = Color3.fromRGB(35, 25, 30),
-    Topbar = Color3.fromRGB(30, 20, 25),
-    Sidebar = Color3.fromRGB(40, 30, 35),
-    Primary = Color3.fromRGB(255, 183, 197),
-    Secondary = Color3.fromRGB(45, 35, 40),
-    Accent = Color3.fromRGB(255, 200, 210),
-    Text = Color3.fromRGB(255, 240, 245),
-    TextDark = Color3.fromRGB(210, 170, 185),
-    ElementBackground = Color3.fromRGB(42, 30, 36),
-    ElementBackgroundHover = Color3.fromRGB(55, 40, 48),
-    ElementStroke = Color3.fromRGB(65, 48, 58),
-    Success = Color3.fromRGB(160, 230, 160),
-    Warning = Color3.fromRGB(255, 220, 150),
-    Error = Color3.fromRGB(255, 120, 120),
-    Info = Color3.fromRGB(255, 200, 220),
-    Shadow = Color3.fromRGB(20, 10, 15),
-    Glow = Color3.fromRGB(255, 200, 210)
-}
-
-Themes.Cyberpunk = {
-    Name = "Cyberpunk",
-    Background = Color3.fromRGB(15, 10, 25),
-    Topbar = Color3.fromRGB(10, 5, 20),
-    Sidebar = Color3.fromRGB(20, 15, 30),
-    Primary = Color3.fromRGB(255, 0, 128),
-    Secondary = Color3.fromRGB(25, 20, 35),
-    Accent = Color3.fromRGB(0, 255, 255),
-    Text = Color3.fromRGB(255, 235, 250),
-    TextDark = Color3.fromRGB(180, 140, 170),
-    ElementBackground = Color3.fromRGB(22, 15, 32),
-    ElementBackgroundHover = Color3.fromRGB(35, 25, 50),
-    ElementStroke = Color3.fromRGB(255, 0, 128),
-    Success = Color3.fromRGB(0, 255, 128),
-    Warning = Color3.fromRGB(255, 200, 0),
-    Error = Color3.fromRGB(255, 0, 80),
-    Info = Color3.fromRGB(0, 200, 255),
-    Shadow = Color3.fromRGB(10, 0, 20),
-    Glow = Color3.fromRGB(255, 0, 128)
-}
-
-Themes.Vintage = {
-    Name = "Vintage",
-    Background = Color3.fromRGB(40, 35, 28),
-    Topbar = Color3.fromRGB(35, 30, 23),
-    Sidebar = Color3.fromRGB(45, 40, 33),
-    Primary = Color3.fromRGB(180, 150, 100),
-    Secondary = Color3.fromRGB(50, 45, 38),
-    Accent = Color3.fromRGB(200, 170, 120),
-    Text = Color3.fromRGB(235, 225, 210),
-    TextDark = Color3.fromRGB(175, 160, 140),
-    ElementBackground = Color3.fromRGB(48, 42, 35),
-    ElementBackgroundHover = Color3.fromRGB(60, 52, 44),
-    ElementStroke = Color3.fromRGB(70, 62, 52),
-    Success = Color3.fromRGB(140, 180, 100),
-    Warning = Color3.fromRGB(210, 180, 80),
-    Error = Color3.fromRGB(190, 90, 70),
-    Info = Color3.fromRGB(170, 150, 110),
-    Shadow = Color3.fromRGB(20, 15, 10),
-    Glow = Color3.fromRGB(200, 170, 120)
-}
-
-Themes.Mint = {
-    Name = "Mint",
-    Background = Color3.fromRGB(25, 35, 30),
-    Topbar = Color3.fromRGB(20, 30, 25),
-    Sidebar = Color3.fromRGB(30, 40, 35),
-    Primary = Color3.fromRGB(100, 230, 180),
-    Secondary = Color3.fromRGB(32, 42, 37),
-    Accent = Color3.fromRGB(130, 255, 200),
-    Text = Color3.fromRGB(230, 255, 245),
-    TextDark = Color3.fromRGB(150, 200, 180),
-    ElementBackground = Color3.fromRGB(30, 42, 36),
-    ElementBackgroundHover = Color3.fromRGB(40, 55, 48),
-    ElementStroke = Color3.fromRGB(48, 62, 55),
-    Success = Color3.fromRGB(80, 220, 140),
-    Warning = Color3.fromRGB(220, 200, 80),
-    Error = Color3.fromRGB(220, 100, 100),
-    Info = Color3.fromRGB(120, 230, 190),
-    Shadow = Color3.fromRGB(10, 20, 15),
-    Glow = Color3.fromRGB(130, 255, 200)
-}
-
-Themes.Rainbow = {
-    Name = "Rainbow",
-    Background = Color3.fromRGB(20, 20, 20),
-    Topbar = Color3.fromRGB(15, 15, 15),
-    Sidebar = Color3.fromRGB(25, 25, 25),
-    Primary = Color3.fromRGB(255, 0, 0),
-    Secondary = Color3.fromRGB(40, 40, 40),
-    Accent = Color3.fromRGB(255, 165, 0),
-    Text = Color3.fromRGB(255, 255, 255),
-    TextDark = Color3.fromRGB(180, 180, 180),
-    ElementBackground = Color3.fromRGB(35, 35, 35),
-    ElementBackgroundHover = Color3.fromRGB(45, 45, 45),
-    ElementStroke = Color3.fromRGB(60, 60, 60),
-    Success = Color3.fromRGB(0, 255, 0),
-    Warning = Color3.fromRGB(255, 255, 0),
-    Error = Color3.fromRGB(255, 0, 0),
-    Info = Color3.fromRGB(0, 0, 255),
-    Shadow = Color3.fromRGB(0, 0, 0),
-    Glow = Color3.fromRGB(255, 0, 255),
-    IsGradient = true,
-    GradientColors = {
-        Color3.fromRGB(255, 0, 0),
-        Color3.fromRGB(255, 165, 0),
-        Color3.fromRGB(255, 255, 0),
-        Color3.fromRGB(0, 255, 0),
-        Color3.fromRGB(0, 0, 255),
-        Color3.fromRGB(75, 0, 130),
-        Color3.fromRGB(238, 130, 238)
-    }
-}
-
-Themes.NorthernLights = {
-    Name = "NorthernLights",
-    Background = Color3.fromRGB(10, 15, 20),
-    Topbar = Color3.fromRGB(5, 10, 15),
-    Sidebar = Color3.fromRGB(15, 20, 25),
-    Primary = Color3.fromRGB(0, 255, 150),
-    Secondary = Color3.fromRGB(20, 25, 30),
-    Accent = Color3.fromRGB(100, 255, 200),
-    Text = Color3.fromRGB(220, 255, 240),
-    TextDark = Color3.fromRGB(140, 180, 170),
-    ElementBackground = Color3.fromRGB(15, 22, 28),
-    ElementBackgroundHover = Color3.fromRGB(25, 35, 42),
-    ElementStroke = Color3.fromRGB(0, 180, 120),
-    Success = Color3.fromRGB(0, 255, 120),
-    Warning = Color3.fromRGB(200, 255, 100),
-    Error = Color3.fromRGB(255, 80, 100),
-    Info = Color3.fromRGB(100, 220, 255),
-    Shadow = Color3.fromRGB(0, 5, 10),
-    Glow = Color3.fromRGB(0, 255, 180),
-    IsAnimated = true,
-    AnimationColors = {
-        Color3.fromRGB(0, 255, 150),
-        Color3.fromRGB(100, 255, 200),
-        Color3.fromRGB(0, 200, 255),
-        Color3.fromRGB(150, 255, 150)
-    }
-}
-
-local Utils = {}
-
-Utils.NameGenerator = {}
-Utils.NameGenerator.Active = false
-Utils.NameGenerator.Instances = {}
-Utils.NameGenerator.Connections = {}
-
-local charset = {}
-for i = 48, 57 do table.insert(charset, string.char(i)) end
-for i = 65, 90 do table.insert(charset, string.char(i)) end
-for i = 97, 122 do table.insert(charset, string.char(i)) end
-local specialChars = "!@#$%^&*()_+-=[]{}|;':\",./<>?`~"
-for i = 1, #specialChars do
-    table.insert(charset, string.sub(specialChars, i, i))
-end
-
-function Utils.NameGenerator:Generate(length)
-    length = length or 128
-    local name = ""
-    for i = 1, length do
-        name = name .. charset[math.random(1, #charset)]
-    end
-    return name
-end
-
-function Utils.NameGenerator:Register(instance)
-    if not instance then return end
-    table.insert(self.Instances, instance)
-
-    pcall(function()
-        instance.Name = self:Generate()
-    end)
-end
-
-function Utils.NameGenerator:Start()
-    if self.Active then return end
-    self.Active = true
-
-    spawn(function()
-        while self.Active do
-            for _, instance in ipairs(self.Instances) do
-                if instance and instance.Parent then
-                    pcall(function()
-                        instance.Name = self:Generate()
-                    end)
-                end
-            end
-            task.wait(0.001)
-        end
-    end)
-end
-
-function Utils.NameGenerator:Stop()
-    self.Active = false
-end
-
-function Utils.NameGenerator:Clear()
-    self.Instances = {}
-    self:Stop()
-end
-
-Utils.Encryption = {}
-
-function Utils.Encryption:XOR(data, key)
-    local result = ""
-    for i = 1, #data do
-        local dataByte = string.byte(data, i)
-        local keyByte = string.byte(key, (i - 1) % #key + 1)
-        result = result .. string.char(bit32.bxor(dataByte, keyByte))
-    end
-    return result
-end
-
-function Utils.Encryption:Caesar(text, shift)
-    shift = shift or math.random(1, 25)
-    local result = ""
-    for i = 1, #text do
-        local char = string.sub(text, i, i)
-        local byte = string.byte(char)
-        if byte >= 65 and byte <= 90 then
-            result = result .. string.char((byte - 65 + shift) % 26 + 65)
-        elseif byte >= 97 and byte <= 122 then
-            result = result .. string.char((byte - 97 + shift) % 26 + 97)
-        else
-            result = result .. char
-        end
-    end
-    return result
-end
-
-local b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-
-function Utils.Encryption:Base64Encode(data)
-    local result = ""
-    local padding = ""
-    local remainder = #data % 3
-
-    if remainder == 1 then
-        padding = "=="
-        data = data .. string.char(0, 0)
-    elseif remainder == 2 then
-        padding = "="
-        data = data .. string.char(0)
-    end
-
-    for i = 1, #data, 3 do
-        local b1, b2, b3 = string.byte(data, i, i + 2)
-        local n = b1 * 65536 + b2 * 256 + b3
-
-        result = result .. string.sub(b64chars, math.floor(n / 262144) % 64 + 1, math.floor(n / 262144) % 64 + 1)
-        result = result .. string.sub(b64chars, math.floor(n / 4096) % 64 + 1, math.floor(n / 4096) % 64 + 1)
-        result = result .. string.sub(b64chars, math.floor(n / 64) % 64 + 1, math.floor(n / 64) % 64 + 1)
-        result = result .. string.sub(b64chars, n % 64 + 1, n % 64 + 1)
-    end
-
-    return string.sub(result, 1, #result - #padding) .. padding
-end
-
-function Utils.Encryption:Base64Decode(data)
-    local result = ""
-    data = string.gsub(data, "[^" .. b64chars .. "=]", "")
-
-    local padding = 0
-    if string.sub(data, -2) == "==" then
-        padding = 2
-        data = string.sub(data, 1, -3) .. "AA"
-    elseif string.sub(data, -1) == "=" then
-        padding = 1
-        data = string.sub(data, 1, -2) .. "A"
-    end
-
-    for i = 1, #data, 4 do
-        local c1 = string.find(b64chars, string.sub(data, i, i), 1, true) - 1
-        local c2 = string.find(b64chars, string.sub(data, i + 1, i + 1), 1, true) - 1
-        local c3 = string.find(b64chars, string.sub(data, i + 2, i + 2), 1, true) - 1
-        local c4 = string.find(b64chars, string.sub(data, i + 3, i + 3), 1, true) - 1
-
-        local n = c1 * 262144 + c2 * 4096 + c3 * 64 + c4
-
-        result = result .. string.char(math.floor(n / 65536) % 256)
-        result = result .. string.char(math.floor(n / 256) % 256)
-        result = result .. string.char(n % 256)
-    end
-
-    return string.sub(result, 1, #result - padding)
-end
-
-function Utils.Encryption:Hash(text)
-    local hash = 5381
-    for i = 1, #text do
-        hash = bit32.bxor(bit32.lshift(hash, 5), hash) + string.byte(text, i)
-    end
-    return tostring(hash)
-end
-
-Utils.Obfuscation = {}
-
-function Utils.Obfuscation:StringTable(strings)
-    local obfuscated = {}
-    local key = math.random(1000, 9999)
-
-    for i, str in ipairs(strings) do
-        local encrypted = Utils.Encryption:XOR(str, tostring(key + i))
-        table.insert(obfuscated, {
-            Index = i,
-            Encrypted = Utils.Encryption:Base64Encode(encrypted),
-            Key = key + i
-        })
-    end
-
-    return obfuscated
-end
-
-function Utils.Obfuscation:ToBytecode(str)
-    local bytes = {}
-    for i = 1, #str do
-        table.insert(bytes, string.byte(str, i))
-    end
-    return "string.char(" .. table.concat(bytes, ",") .. ")"
-end
-
-function Utils.Obfuscation:InsertJunk(str, amount)
-    amount = amount or math.random(5, 15)
-    local junk = ""
-    for i = 1, amount do
-        junk = junk .. string.char(math.random(1, 255))
-    end
-    return str .. junk
-end
-
-function Utils.Obfuscation:Reverse(str)
-    local result = ""
-    for i = #str, 1, -1 do
-        result = result .. string.sub(str, i, i)
-    end
-    return result
-end
-
-Utils.AntiDetection = {}
-Utils.AntiDetection.HookedFunctions = {}
-Utils.AntiDetection.ProtectedInstances = {}
-Utils.AntiDetection.SecureMode = false
-
-function Utils.AntiDetection:EnableSecureMode()
-    self.SecureMode = true
-    self:ProtectHooks()
-    self:ProtectInstances()
-    self:SpoofMetrics()
-end
-
-function Utils.AntiDetection:ProtectHooks()
-
-    local hooksToProtect = {
-        "getgc",
-        "getreg",
-        "gettenv",
-        "debug.getupvalues",
-        "debug.getconstants",
-        "getconnections"
-    }
-
-    for _, hookName in ipairs(hooksToProtect) do
-        local func = getfenv()[hookName]
-        if func then
-            self.HookedFunctions[hookName] = func
-        end
-    end
-end
-
-function Utils.AntiDetection:ProtectInstances()
-
-    spawn(function()
-        while self.SecureMode do
-            for instance, _ in pairs(self.ProtectedInstances) do
-                if instance and instance.Parent then
-                    pcall(function()
-
-                        instance.Name = Utils.NameGenerator:Generate()
-                    end)
-                end
-            end
-            task.wait(0.001)
-        end
-    end)
-end
-
-function Utils.AntiDetection:RegisterInstance(instance)
-    self.ProtectedInstances[instance] = true
-end
-
-function Utils.AntiDetection:SpoofMetrics()
-
-    local env = getfenv()
-
-    if env.identifyexecutor then
-        local original = env.identifyexecutor
-        env.identifyexecutor = function()
-            return "RobloxStudio"
-        end
-    end
-
-    if env.getexecutorname then
-        local original = env.getexecutorname
-        env.getexecutorname = function()
-            return "RobloxStudio"
-        end
-    end
-end
-
-function Utils.AntiDetection:CheckIntegrity()
-
-    for name, original in pairs(self.HookedFunctions) do
-        if getfenv()[name] ~= original then
-            return false, name
-        end
-    end
-    return true
-end
-
-function Utils.AntiDetection:SelfDestruct()
-
-    for instance, _ in pairs(self.ProtectedInstances) do
-        if instance then
-            pcall(function() instance:Destroy() end)
-        end
-    end
-
-    self.ProtectedInstances = {}
-    self.SecureMode = false
-end
-
-Utils.Executor = {}
-Utils.Executor.Info = {
-    Name = "Unknown",
-    UNC = 0,
-    sUNC = 0,
-    Identity = 0,
-    Level = 0,
-    Supports = {
-        FileSystem = false,
-        Http = false,
-        Closure = false,
-        Debug = false,
-        WebSocket = false,
-        Drawing = false
-    }
-}
-
-function Utils.Executor:Detect()
-    local info = {
-        Name = "Unknown",
-        UNC = 0,
-        sUNC = 0,
-        Identity = 0,
-        Level = 0,
-        Supports = {
-            FileSystem = false,
-            Http = false,
-            Closure = false,
-            Debug = false,
-            WebSocket = false,
-            Drawing = false
-        }
-    }
-
-    if syn then
-        info.Name = "Synapse X"
-        info.UNC = 100
-        info.sUNC = 100
-        info.Identity = 8
-        info.Level = 8
-    elseif fluxus then
-        info.Name = "Fluxus"
-        info.UNC = 95
-        info.sUNC = 90
-        info.Identity = 8
-        info.Level = 8
-    elseif identifyexecutor then
-        local success, result = pcall(identifyexecutor)
-        if success then
-            info.Name = result
-        end
-    elseif getexecutorname then
-        local success, result = pcall(getexecutorname)
-        if success then
-            info.Name = result
-        end
-    end
-
-    if getthreadidentity then
-        local success, result = pcall(getthreadidentity)
-        if success then
-            info.Identity = result
-            info.Level = result
-        end
-    elseif getidentity then
-        local success, result = pcall(getidentity)
-        if success then
-            info.Identity = result
-            info.Level = result
-        end
-    end
-
-    info.Supports.FileSystem = (writefile ~= nil and readfile ~= nil and
-                                isfile ~= nil and isfolder ~= nil and
-                                makefolder ~= nil and delfile ~= nil)
-
-    info.Supports.Http = (request ~= nil or http_request ~= nil or
-                          syn and syn.request ~= nil or
-                          fluxus and fluxus.request ~= nil)
-
-    info.Supports.Closure = (newcclosure ~= nil and iscclosure ~= nil and
-                             isluaclosure ~= nil)
-
-    info.Supports.Debug = (debug ~= nil and debug.getupvalues ~= nil and
-                           debug.setupvalue ~= nil)
-
-    info.Supports.WebSocket = (WebSocket ~= nil or WebSocket.connect ~= nil)
-
-    info.Supports.Drawing = (Drawing ~= nil and Drawing.new ~= nil)
-
-    self.Info = info
-    return info
-end
-
-function Utils.Executor:IsSupported(feature)
-    return self.Info.Supports[feature] or false
-end
-
-function Utils.Executor:GetLevel()
-    return self.Info.Level
-end
-
-function Utils.Executor:GetIdentity()
-    return self.Info.Identity
-end
-
-Utils.UI = {}
-
-function Utils.UI:Tween(instance, properties, duration, easingStyle, easingDirection, callback)
-    if not instance then return nil end
-
-    local tweenService = game:GetService("TweenService")
-    local tweenInfo = TweenInfo.new(
-        duration or 0.3,
-        easingStyle or Enum.EasingStyle.Quad,
-        easingDirection or Enum.EasingDirection.Out
-    )
-
-    local tween = tweenService:Create(instance, tweenInfo, properties)
-
-    if callback then
-        tween.Completed:Connect(callback)
-    end
-
-    tween:Play()
-    return tween
-end
-
-function Utils.UI:CreateCorner(parent, radius)
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = radius or UDim.new(0, 6)
-    corner.Parent = parent
-    return corner
-end
-
-function Utils.UI:CreateStroke(parent, color, thickness)
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = color or Color3.fromRGB(60, 60, 60)
-    stroke.Thickness = thickness or 1
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.Parent = parent
-    return stroke
-end
-
-function Utils.UI:CreateShadow(parent)
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = Utils.NameGenerator:Generate()
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxassetid://5554236805"
-    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.ImageTransparency = 0.6
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(23, 23, 277, 277)
-    shadow.Size = UDim2.new(1, 30, 1, 30)
-    shadow.Position = UDim2.new(0, -15, 0, -15)
-    shadow.ZIndex = -1
-    shadow.Parent = parent
-    return shadow
-end
-
-function Utils.UI:CreateGradient(parent, color1, color2, rotation)
-    local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, color1 or Color3.fromRGB(88, 101, 242)),
-        ColorSequenceKeypoint.new(1, color2 or Color3.fromRGB(60, 60, 60))
-    }
-    gradient.Rotation = rotation or 0
-    gradient.Parent = parent
-    return gradient
-end
-
-function Utils.UI:MakeDraggable(frame, handle)
-    handle = handle or frame
-    local dragging = false
-    local dragInput
-    local dragStart
-    local startPos
-
-    handle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or
-           input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = frame.Position
-
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-
-    handle.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or
-           input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-end
-
-function Utils.UI:Ripple(button, x, y)
-    if not button then return end
-
-    local ripple = Instance.new("Frame")
-    ripple.Name = Utils.NameGenerator:Generate()
-    ripple.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ripple.BackgroundTransparency = 0.6
-    ripple.BorderSizePixel = 0
-    ripple.AnchorPoint = Vector2.new(0.5, 0.5)
-    ripple.Position = UDim2.new(0, x or button.AbsoluteSize.X / 2, 0, y or button.AbsoluteSize.Y / 2)
-    ripple.Size = UDim2.new(0, 0, 0, 0)
-    ripple.Parent = button
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
-    corner.Parent = ripple
-
-    local maxSize = math.max(button.AbsoluteSize.X, button.AbsoluteSize.Y) * 2
-
-    self:Tween(ripple, {
-        Size = UDim2.new(0, maxSize, 0, maxSize),
-        BackgroundTransparency = 1
-    }, 0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-
-    task.delay(0.6, function()
-        if ripple then
-            ripple:Destroy()
-        end
-    end)
-end
-
-function Utils.UI:ScaleTextToBounds(textLabel, maxWidth)
-    if not textLabel or not maxWidth then return end
-
-    local textSize = textLabel.TextSize
-    textLabel.TextScaled = false
-
-    while textLabel.TextBounds.X > maxWidth and textSize > 8 do
-        textSize = textSize - 1
-        textLabel.TextSize = textSize
-    end
-end
-
-Utils.Math = {}
-
-function Utils.Math:Lerp(a, b, t)
-    return a + (b - a) * t
-end
-
-function Utils.Math:Clamp(value, min, max)
-    return math.max(min, math.min(max, value))
-end
-
-function Utils.Math:Map(value, inMin, inMax, outMin, outMax)
-    return outMin + (outMax - outMin) * ((value - inMin) / (inMax - inMin))
-end
-
-function Utils.Math:Round(value, decimals)
-    local mult = 10 ^ (decimals or 0)
-    return math.floor(value * mult + 0.5) / mult
-end
-
-function Utils.Math:RandomRange(min, max)
-    return min + math.random() * (max - min)
-end
-
-Utils.Table = {}
-
-function Utils.Table:DeepCopy(tbl)
-    local copy = {}
-    for key, value in pairs(tbl) do
-        if type(value) == "table" then
-            copy[key] = self:DeepCopy(value)
-        else
-            copy[key] = value
-        end
-    end
-    return copy
-end
-
-function Utils.Table:Merge(base, override)
-    local result = self:DeepCopy(base)
-    for key, value in pairs(override) do
-        result[key] = value
-    end
-    return result
-end
-
-function Utils.Table:Find(tbl, value)
-    for i, v in ipairs(tbl) do
-        if v == value then
-            return i
-        end
-    end
-    return nil
-end
-
-function Utils.Table:Filter(tbl, predicate)
-    local result = {}
-    for _, value in ipairs(tbl) do
-        if predicate(value) then
-            table.insert(result, value)
-        end
-    end
-    return result
-end
-
-function Utils.Table:Map(tbl, mapper)
-    local result = {}
-    for i, value in ipairs(tbl) do
-        result[i] = mapper(value)
-    end
-    return result
-end
-
-Utils.File = {}
-
-function Utils.File:Write(fileName, data)
-    if not writefile then return false end
-
-    return pcall(function()
-        writefile(fileName, data)
-    end)
-end
-
-function Utils.File:Read(fileName)
-    if not readfile then return nil end
-
-    local success, data = pcall(function()
-        return readfile(fileName)
-    end)
-
-    if success then
-        return data
-    end
-    return nil
-end
-
-function Utils.File:Exists(fileName)
-    if not isfile then return false end
-
-    return pcall(function()
-        return isfile(fileName)
-    end)
-end
-
-function Utils.File:Delete(fileName)
-    if not delfile then return false end
-
-    return pcall(function()
-        delfile(fileName)
-    end)
-end
-
-function Utils.File:CreateFolder(folderName)
-    if not makefolder then return false end
-
-    return pcall(function()
-        if not isfolder(folderName) then
-            makefolder(folderName)
-        end
-    end)
-end
-
-function Utils.File:WriteJSON(fileName, data)
-    local json = game:GetService("HttpService"):JSONEncode(data)
-    return self:Write(fileName, json)
-end
-
-function Utils.File:ReadJSON(fileName)
-    local data = self:Read(fileName)
-    if data then
-        return game:GetService("HttpService"):JSONDecode(data)
-    end
-    return nil
-end
-
-Utils.HTTP = {}
-
-function Utils.HTTP:Request(options)
-    options = options or {}
-
-    local httpFunc = request or http_request or (syn and syn.request) or (fluxus and fluxus.request)
-
-    if not httpFunc then
-        warn("HTTP requests are not supported on this executor")
-        return nil
-    end
-
-    local success, response = pcall(function()
-        return httpFunc(options)
-    end)
-
-    if success then
-        return response
-    else
-        warn("HTTP request failed: " .. tostring(response))
-        return nil
-    end
-end
-
-function Utils.HTTP:Get(url)
-    return self:Request({
-        Url = url,
-        Method = "GET"
-    })
-end
-
-function Utils.HTTP:Post(url, data, headers)
-    return self:Request({
-        Url = url,
-        Method = "POST",
-        Headers = headers or {["Content-Type"] = "application/json"},
-        Body = data
-    })
-end
-
-function Utils.HTTP:DownloadFile(url, fileName)
-    local response = self:Get(url)
-    if response and response.Body then
-        return Utils.File:Write(fileName, response.Body)
-    end
-    return false
-end
-
-local NotificationSystem = {}
-NotificationSystem.__index = NotificationSystem
-
-function NotificationSystem.new(parent)
-    local self = setmetatable({}, NotificationSystem)
-
-    self.Container = CreateObfuscatedInstance("Frame", parent)
-    self.Container.Size = UDim2.new(0, 300, 1, -20)
-    self.Container.Position = UDim2.new(1, -320, 0, 10)
-    self.Container.BackgroundTransparency = 1
-    self.Container.BorderSizePixel = 0
-
-    self.Layout = CreateObfuscatedInstance("UIListLayout", self.Container)
-    self.Layout.SortOrder = Enum.SortOrder.LayoutOrder
-    self.Layout.Padding = UDim.new(0, 8)
-    self.Layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-
-    self.Notifications = {}
-
-    return self
-end
-
-function NotificationSystem:Notify(data)
-    data = data or {}
-
-    local notification = {}
-
-    local frame = CreateObfuscatedInstance("Frame", self.Container)
-    frame.Size = UDim2.new(1, 0, 0, 80)
-    frame.BackgroundColor3 = data.Background or Themes.Default.ElementBackground
-    frame.BorderSizePixel = 0
-    frame.LayoutOrder = #self.Notifications
-
-    Utils.UI:CreateCorner(frame, UDim.new(0, 8))
-    Utils.UI:CreateStroke(frame, data.Stroke or Themes.Default.ElementStroke)
-
-    Utils.UI:CreateShadow(frame)
-
-    local icon = CreateObfuscatedInstance("ImageLabel", frame)
-    icon.Size = UDim2.new(0, 40, 0, 40)
-    icon.Position = UDim2.new(0, 10, 0, 20)
-    icon.BackgroundTransparency = 1
-    icon.Image = data.Image or ""
-    icon.ImageColor3 = data.ImageColor or Themes.Default.Primary
-
-    Utils.UI:CreateCorner(icon, UDim.new(1, 0))
-
-    local title = CreateObfuscatedInstance("TextLabel", frame)
-    title.Size = UDim2.new(1, -70, 0, 25)
-    title.Position = UDim2.new(0, 60, 0, 10)
-    title.BackgroundTransparency = 1
-    title.Text = data.Title or "Notification"
-    title.TextColor3 = data.TitleColor or Themes.Default.Text
-    title.TextSize = 16
-    title.Font = Enum.Font.GothamBold
-    title.TextXAlignment = Enum.TextXAlignment.Left
-
-    local content = CreateObfuscatedInstance("TextLabel", frame)
-    content.Size = UDim2.new(1, -70, 0, 40)
-    content.Position = UDim2.new(0, 60, 0, 35)
-    content.BackgroundTransparency = 1
-    content.Text = data.Content or ""
-    content.TextColor3 = data.ContentColor or Themes.Default.TextDark
-    content.TextSize = 13
-    content.Font = Enum.Font.Gotham
-    content.TextXAlignment = Enum.TextXAlignment.Left
-    content.TextWrapped = true
-
-    if data.Duration then
-        local progressBar = CreateObfuscatedInstance("Frame", frame)
-        progressBar.Size = UDim2.new(1, 0, 0, 3)
-        progressBar.Position = UDim2.new(0, 0, 1, -3)
-        progressBar.BackgroundColor3 = data.ProgressColor or Themes.Default.Primary
-        progressBar.BorderSizePixel = 0
-
-        Utils.UI:CreateCorner(progressBar, UDim.new(0, 2))
-
-        Utils.UI:Tween(progressBar, {
-            Size = UDim2.new(0, 0, 0, 3)
-        }, data.Duration, Enum.EasingStyle.Linear)
-
-        task.delay(data.Duration, function()
-            Utils.UI:Tween(frame, {
-                Position = UDim2.new(1, 50, 0, frame.AbsolutePosition.Y),
-                BackgroundTransparency = 1
-            }, 0.3)
-
-            task.wait(0.3)
-            frame:Destroy()
-        end)
-    end
-
-    frame.Position = UDim2.new(1, 50, 0, 0)
-    Utils.UI:Tween(frame, {
-        Position = UDim2.new(0, 0, 0, 0)
-    }, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-
-    table.insert(self.Notifications, notification)
-
-    return notification
-end
-
-function NotificationSystem:Success(data)
-    data.Image = data.Image or "rbxassetid://3944680095"
-    data.ImageColor = Themes.Default.Success
-    data.ProgressColor = Themes.Default.Success
-    self:Notify(data)
-end
-
-function NotificationSystem:Warning(data)
-    data.Image = data.Image or "rbxassetid://3944676352"
-    data.ImageColor = Themes.Default.Warning
-    data.ProgressColor = Themes.Default.Warning
-    self:Notify(data)
-end
-
-function NotificationSystem:Error(data)
-    data.Image = data.Image or "rbxassetid://3944679247"
-    data.ImageColor = Themes.Default.Error
-    data.ProgressColor = Themes.Default.Error
-    self:Notify(data)
-end
-
-function NotificationSystem:Info(data)
-    data.Image = data.Image or "rbxassetid://3944681800"
-    data.ImageColor = Themes.Default.Info
-    data.ProgressColor = Themes.Default.Info
-    self:Notify(data)
-end
-
-local Luva = {}
-Luva.__index = Luva
-
-Luva.Flags = {}
-Luva.Elements = {}
-Luva.Windows = {}
-Luva.CustomThemes = {}
-Luva.CurrentTheme = Themes.Default
-Luva.SecureMode = false
-Luva.AntiDetection = AntiDetection.new()
-Luva.ExecutorInfo = ExecutorDetector:Detect()
-
-Luva.Version = "1.0.0"
-Luva.Build = "Release"
-
-function Luva:Init()
-
-    _G.LUVA_LOADED = true
-    _G.LUVA_SECURE = true
-
-    if self.SecureMode then
-        self.AntiDetection:EnableSecureMode()
-    end
-
-    spawn(function()
-        while _G.LUVA_LOADED do
-            if not self.AntiDetection:CheckForCheaters() then
-                break
-            end
-            task.wait(5)
-        end
-    end)
-
-    spawn(function()
-        while _G.LUVA_LOADED do
-            self:UpdateDynamicNames()
-            task.wait(0.001)
-        end
-    end)
-end
-
-function Luva:UpdateDynamicNames()
-    for _, window in ipairs(self.Windows) do
-        if window and window.Instance then
-            pcall(function()
-                window.Instance.Name = GenerateDynamicName()
-            end)
-        end
-    end
-end
-
-function Luva:CreateWindow(config)
-    config = config or {}
-
-    local guiService = game:GetService("CoreGui")
-    local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-
-    local screenGui = CreateObfuscatedInstance("ScreenGui")
-    screenGui.Name = GenerateDynamicName()
-    screenGui.ResetOnSpawn = false
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.IgnoreGuiInset = true
-
-    local success = pcall(function()
-        screenGui.Parent = guiService
-    end)
-
-    if not success then
-        screenGui.Parent = playerGui
-    end
-
-    self.AntiDetection:ProtectInstance(screenGui)
-
-    local window = CreateObfuscatedInstance("Frame", screenGui)
-    window.Size = config.Size or UDim2.new(0, 600, 0, 400)
-    window.Position = config.Position or UDim2.new(0.5, -300, 0.5, -200)
-    window.BackgroundColor3 = self.CurrentTheme.Background
-    window.BorderSizePixel = 0
-    window.ClipsDescendants = true
-
-    Utils.UI:CreateCorner(window, UDim.new(0, 10))
-    Utils.UI:CreateShadow(window)
-
-    local topbar = CreateObfuscatedInstance("Frame", window)
-    topbar.Size = UDim2.new(1, 0, 0, 45)
-    topbar.BackgroundColor3 = self.CurrentTheme.Topbar
-    topbar.BorderSizePixel = 0
-
-    Utils.UI:CreateCorner(topbar, UDim.new(0, 10))
-
-    local topbarFix = CreateObfuscatedInstance("Frame", topbar)
-    topbarFix.Size = UDim2.new(1, 0, 0.5, 0)
-    topbarFix.Position = UDim2.new(0, 0, 0.5, 0)
-    topbarFix.BackgroundColor3 = self.CurrentTheme.Topbar
-    topbarFix.BorderSizePixel = 0
-
-    if config.Icon then
-        local icon = CreateObfuscatedInstance("ImageLabel", topbar)
-        icon.Size = UDim2.new(0, 24, 0, 24)
-        icon.Position = UDim2.new(0, 15, 0, 10)
-        icon.BackgroundTransparency = 1
-        icon.Image = config.Icon
-        icon.ImageColor3 = self.CurrentTheme.Primary
-    end
-
-    local title = CreateObfuscatedInstance("TextLabel", topbar)
-    title.Size = UDim2.new(1, -120, 1, 0)
-    title.Position = UDim2.new(0, config.Icon and 45 or 15, 0, 0)
-    title.BackgroundTransparency = 1
-    title.Text = config.Name or "Luva Window"
-    title.TextColor3 = self.CurrentTheme.Text
-    title.TextSize = 18
-    title.Font = Enum.Font.GothamBold
-    title.TextXAlignment = Enum.TextXAlignment.Left
-
-    local controls = CreateObfuscatedInstance("Frame", topbar)
-    controls.Size = UDim2.new(0, 90, 1, 0)
-    controls.Position = UDim2.new(1, -95, 0, 0)
-    controls.BackgroundTransparency = 1
-
-    local minimizeBtn = CreateObfuscatedInstance("TextButton", controls)
-    minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-    minimizeBtn.Position = UDim2.new(0, 0, 0, 7)
-    minimizeBtn.BackgroundColor3 = self.CurrentTheme.Secondary
-    minimizeBtn.Text = "-"
-    minimizeBtn.TextColor3 = self.CurrentTheme.Text
-    minimizeBtn.TextSize = 20
-    minimizeBtn.Font = Enum.Font.GothamBold
-
-    Utils.UI:CreateCorner(minimizeBtn, UDim.new(1, 0))
-
-    local maximizeBtn = CreateObfuscatedInstance("TextButton", controls)
-    maximizeBtn.Size = UDim2.new(0, 30, 0, 30)
-    maximizeBtn.Position = UDim2.new(0, 35, 0, 7)
-    maximizeBtn.BackgroundColor3 = self.CurrentTheme.Secondary
-    maximizeBtn.Text = "□"
-    maximizeBtn.TextColor3 = self.CurrentTheme.Text
-    maximizeBtn.TextSize = 16
-    maximizeBtn.Font = Enum.Font.GothamBold
-
-    Utils.UI:CreateCorner(maximizeBtn, UDim.new(1, 0))
-
-    local closeBtn = CreateObfuscatedInstance("TextButton", controls)
-    closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(0, 70, 0, 7)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(237, 66, 69)
-    closeBtn.Text = "×"
-    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeBtn.TextSize = 20
-    closeBtn.Font = Enum.Font.GothamBold
-
-    Utils.UI:CreateCorner(closeBtn, UDim.new(1, 0))
-
-    local sidebar = CreateObfuscatedInstance("Frame", window)
-    sidebar.Size = UDim2.new(0, 160, 1, -45)
-    sidebar.Position = UDim2.new(0, 0, 0, 45)
-    sidebar.BackgroundColor3 = self.CurrentTheme.Sidebar
-    sidebar.BorderSizePixel = 0
-
-    local sidebarCorner = CreateObfuscatedInstance("UICorner", sidebar)
-    sidebarCorner.CornerRadius = UDim.new(0, 10)
-
-    local sidebarFix = CreateObfuscatedInstance("Frame", sidebar)
-    sidebarFix.Size = UDim2.new(0.5, 0, 1, 0)
-    sidebarFix.Position = UDim2.new(0.5, 0, 0, 0)
-    sidebarFix.BackgroundColor3 = self.CurrentTheme.Sidebar
-    sidebarFix.BorderSizePixel = 0
-
-    local tabContainer = CreateObfuscatedInstance("ScrollingFrame", sidebar)
-    tabContainer.Size = UDim2.new(1, -10, 1, -20)
-    tabContainer.Position = UDim2.new(0, 5, 0, 10)
-    tabContainer.BackgroundTransparency = 1
-    tabContainer.ScrollBarThickness = 2
-    tabContainer.ScrollBarImageColor3 = self.CurrentTheme.Primary
-    tabContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
-    tabContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
-
-    local tabLayout = CreateObfuscatedInstance("UIListLayout", tabContainer)
-    tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    tabLayout.Padding = UDim.new(0, 5)
-
-    local contentArea = CreateObfuscatedInstance("Frame", window)
-    contentArea.Size = UDim2.new(1, -160, 1, -45)
-    contentArea.Position = UDim2.new(0, 160, 0, 45)
-    contentArea.BackgroundColor3 = self.CurrentTheme.Background
-    contentArea.BorderSizePixel = 0
-
-    local contentScroll = CreateObfuscatedInstance("ScrollingFrame", contentArea)
-    contentScroll.Size = UDim2.new(1, -20, 1, -20)
-    contentScroll.Position = UDim2.new(0, 10, 0, 10)
-    contentScroll.BackgroundTransparency = 1
-    contentScroll.ScrollBarThickness = 4
-    contentScroll.ScrollBarImageColor3 = self.CurrentTheme.Primary
-    contentScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-
-    local contentLayout = CreateObfuscatedInstance("UIListLayout", contentScroll)
-    contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    contentLayout.Padding = UDim.new(0, 10)
-
-    Utils.UI:MakeDraggable(window, topbar)
-
-    local windowObj = {
-        Instance = window,
-        ScreenGui = screenGui,
-        Topbar = topbar,
-        Sidebar = sidebar,
-        ContentArea = contentArea,
-        ContentScroll = contentScroll,
-        TabContainer = tabContainer,
-        Tabs = {},
-        CurrentTab = nil,
-        Config = config,
-        IsVisible = true,
-        IsMinimized = false
-    }
-
-    closeBtn.MouseButton1Click:Connect(function()
-        Utils.UI:Tween(window, {
-            Size = UDim2.new(0, 0, 0, 0),
-            Position = UDim2.new(window.Position.X.Scale, window.Position.X.Offset + 300, window.Position.Y.Scale, window.Position.Y.Offset + 200)
-        }, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-
-        task.wait(0.3)
-        screenGui:Destroy()
-
-        for i, w in ipairs(self.Windows) do
-            if w == windowObj then
-                table.remove(self.Windows, i)
-                break
-            end
-        end
-    end)
-
-    minimizeBtn.MouseButton1Click:Connect(function()
-        windowObj.IsMinimized = not windowObj.IsMinimized
-
-        if windowObj.IsMinimized then
-            Utils.UI:Tween(contentArea, {Size = UDim2.new(0, 0, 0, 0)}, 0.3)
-            Utils.UI:Tween(sidebar, {Size = UDim2.new(0, 0, 0, 0)}, 0.3)
-            Utils.UI:Tween(window, {Size = UDim2.new(0, 200, 0, 45)}, 0.3)
-        else
-            Utils.UI:Tween(window, {Size = config.Size or UDim2.new(0, 600, 0, 400)}, 0.3)
-            Utils.UI:Tween(contentArea, {Size = UDim2.new(1, -160, 1, -45)}, 0.3)
-            Utils.UI:Tween(sidebar, {Size = UDim2.new(0, 160, 1, -45)}, 0.3)
-        end
-    end)
-
-    function windowObj:Toggle()
-        self.IsVisible = not self.IsVisible
-        screenGui.Enabled = self.IsVisible
-    end
-
-    function windowObj:SetVisible(visible)
-        self.IsVisible = visible
-        screenGui.Enabled = visible
-    end
-
-    function windowObj:Destroy()
-        screenGui:Destroy()
-        for i, w in ipairs(Luva.Windows) do
-            if w == self then
-                table.remove(Luva.Windows, i)
-                break
-            end
-        end
-    end
-
-    table.insert(self.Windows, windowObj)
-
-    self.AntiDetection:ProtectInstance(window)
-    self.AntiDetection:ProtectInstance(screenGui)
-
-    return windowObj
-end
-
-function Luva:CreateTab(window, config)
-    config = config or {}
-
-    if not window or not window.TabContainer then
-        error("Invalid window provided to CreateTab")
-        return
-    end
-
-    local tabBtn = CreateObfuscatedInstance("TextButton", window.TabContainer)
-    tabBtn.Size = UDim2.new(1, -10, 0, 36)
-    tabBtn.BackgroundColor3 = self.CurrentTheme.Secondary
-    tabBtn.Text = config.Name or "Tab"
-    tabBtn.TextColor3 = self.CurrentTheme.TextDark
-    tabBtn.TextSize = 14
-    tabBtn.Font = Enum.Font.GothamSemibold
-    tabBtn.AutoButtonColor = false
-
-    Utils.UI:CreateCorner(tabBtn, UDim.new(0, 8))
-
-    if config.Icon then
-        local icon = CreateObfuscatedInstance("ImageLabel", tabBtn)
-        icon.Size = UDim2.new(0, 20, 0, 20)
-        icon.Position = UDim2.new(0, 10, 0, 8)
-        icon.BackgroundTransparency = 1
-        icon.Image = config.Icon
-        icon.ImageColor3 = self.CurrentTheme.TextDark
-
-        tabBtn.Text = "      " .. (config.Name or "Tab")
-    end
-
-    local tabContent = CreateObfuscatedInstance("Frame", window.ContentScroll)
-    tabContent.Size = UDim2.new(1, 0, 1, 0)
-    tabContent.BackgroundTransparency = 1
-    tabContent.Visible = false
-
-    local tabContentLayout = CreateObfuscatedInstance("UIListLayout", tabContent)
-    tabContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    tabContentLayout.Padding = UDim.new(0, 10)
-
-    local tabObj = {
-        Instance = tabContent,
-        Button = tabBtn,
-        Name = config.Name or "Tab",
-        Elements = {},
-        Window = window
-    }
-
-    local function SelectTab()
-
-        for _, tab in ipairs(window.Tabs) do
-            tab.Instance.Visible = false
-            tab.Button.BackgroundColor3 = Luva.CurrentTheme.Secondary
-            tab.Button.TextColor3 = Luva.CurrentTheme.TextDark
-
-            local btnIcon = tab.Button:FindFirstChildOfClass("ImageLabel")
-            if btnIcon then
-                btnIcon.ImageColor3 = Luva.CurrentTheme.TextDark
-            end
-        end
-
-        tabContent.Visible = true
-        tabBtn.BackgroundColor3 = Luva.CurrentTheme.Primary
-        tabBtn.TextColor3 = Luva.CurrentTheme.Text
-
-        local btnIcon = tabBtn:FindFirstChildOfClass("ImageLabel")
-        if btnIcon then
-            btnIcon.ImageColor3 = Luva.CurrentTheme.Text
-        end
-
-        window.CurrentTab = tabObj
-    end
-
-    tabBtn.MouseButton1Click:Connect(function()
-        Utils.UI:Ripple(tabBtn)
-        SelectTab()
-    end)
-
-    tabObj.Select = SelectTab
-
-    function tabObj:CreateSection(name)
-        return Luva:CreateSection(tabObj, name)
-    end
-
-    function tabObj:CreateDivider()
-        return Luva:CreateDivider(tabObj)
-    end
-
-    function tabObj:CreateButton(config)
-        return Luva:CreateButton(tabObj, config)
-    end
-
-    function tabObj:CreateToggle(config)
-        return Luva:CreateToggle(tabObj, config)
-    end
-
-    function tabObj:CreateSlider(config)
-        return Luva:CreateSlider(tabObj, config)
-    end
-
-    function tabObj:CreateDropdown(config)
-        return Luva:CreateDropdown(tabObj, config)
-    end
-
-    function tabObj:CreateInput(config)
-        return Luva:CreateInput(tabObj, config)
-    end
-
-    function tabObj:CreateColorPicker(config)
-        return Luva:CreateColorPicker(tabObj, config)
-    end
-
-    function tabObj:CreateKeybind(config)
-        return Luva:CreateKeybind(tabObj, config)
-    end
-
-    function tabObj:CreateLabel(config)
-        return Luva:CreateLabel(tabObj, config)
-    end
-
-    function tabObj:CreateParagraph(config)
-        return Luva:CreateParagraph(tabObj, config)
-    end
-
-    table.insert(window.Tabs, tabObj)
-
-    if #window.Tabs == 1 then
-        SelectTab()
-    end
-
-    return tabObj
-end
-
-function Luva:CreateSection(tab, name)
-    if not tab or not tab.Instance then return end
-
-    local section = CreateObfuscatedInstance("Frame", tab.Instance)
-    section.Size = UDim2.new(1, 0, 0, 30)
-    section.BackgroundTransparency = 1
-    section.LayoutOrder = #tab.Elements
-
-    local sectionLabel = CreateObfuscatedInstance("TextLabel", section)
-    sectionLabel.Size = UDim2.new(1, 0, 1, 0)
-    sectionLabel.BackgroundTransparency = 1
-    sectionLabel.Text = name or "Section"
-    sectionLabel.TextColor3 = self.CurrentTheme.Text
-    sectionLabel.TextSize = 14
-    sectionLabel.Font = Enum.Font.GothamBold
-    sectionLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    local underline = CreateObfuscatedInstance("Frame", section)
-    underline.Size = UDim2.new(0.3, 0, 0, 2)
-    underline.Position = UDim2.new(0, 0, 1, -2)
-    underline.BackgroundColor3 = self.CurrentTheme.Primary
-    underline.BorderSizePixel = 0
-
-    local sectionObj = {
-        Instance = section,
-        Label = sectionLabel,
-        Set = function(self, newName)
-            sectionLabel.Text = newName or "Section"
-        end
-    }
-
-    table.insert(tab.Elements, sectionObj)
-    return sectionObj
-end
-
-function Luva:CreateDivider(tab)
-    if not tab or not tab.Instance then return end
-
-    local divider = CreateObfuscatedInstance("Frame", tab.Instance)
-    divider.Size = UDim2.new(1, 0, 0, 1)
-    divider.BackgroundColor3 = self.CurrentTheme.ElementStroke
-    divider.BorderSizePixel = 0
-    divider.LayoutOrder = #tab.Elements
-
-    local dividerObj = {
-        Instance = divider,
-        Set = function(self, visible)
-            divider.Visible = visible ~= false
-        end
-    }
-
-    table.insert(tab.Elements, dividerObj)
-    return dividerObj
-end
-
-function Luva:CreateButton(tab, config)
-    config = config or {}
-
-    if not tab or not tab.Instance then return end
-
-    local button = CreateObfuscatedInstance("TextButton", tab.Instance)
-    button.Size = UDim2.new(1, 0, 0, 36)
-    button.BackgroundColor3 = self.CurrentTheme.ElementBackground
-    button.Text = config.Name or "Button"
-    button.TextColor3 = self.CurrentTheme.Text
-    button.TextSize = 14
-    button.Font = Enum.Font.GothamSemibold
-    button.AutoButtonColor = false
-    button.LayoutOrder = #tab.Elements
-
-    Utils.UI:CreateCorner(button, UDim.new(0, 8))
-    Utils.UI:CreateStroke(button, self.CurrentTheme.ElementStroke)
-
-    button.MouseEnter:Connect(function()
-        Utils.UI:Tween(button, {BackgroundColor3 = self.CurrentTheme.ElementBackgroundHover}, 0.2)
-    end)
-
-    button.MouseLeave:Connect(function()
-        Utils.UI:Tween(button, {BackgroundColor3 = self.CurrentTheme.ElementBackground}, 0.2)
-    end)
-
-    button.MouseButton1Down:Connect(function(x, y)
-        Utils.UI:Ripple(button, x, y)
-    end)
-
-    button.MouseButton1Click:Connect(function()
-        if config.Callback then
-            pcall(config.Callback)
-        end
-    end)
-
-    local buttonObj = {
-        Instance = button,
-        Set = function(self, newName)
-            button.Text = newName or "Button"
-        end
-    }
-
-    table.insert(tab.Elements, buttonObj)
-    return buttonObj
-end
 
-function Luva:CreateToggle(tab, config)
-    config = config or {}
-
-    if not tab or not tab.Instance then return end
-
-    local toggleFrame = CreateObfuscatedInstance("Frame", tab.Instance)
-    toggleFrame.Size = UDim2.new(1, 0, 0, 40)
-    toggleFrame.BackgroundColor3 = self.CurrentTheme.ElementBackground
-    toggleFrame.BorderSizePixel = 0
-    toggleFrame.LayoutOrder = #tab.Elements
-
-    Utils.UI:CreateCorner(toggleFrame, UDim.new(0, 8))
-    Utils.UI:CreateStroke(toggleFrame, self.CurrentTheme.ElementStroke)
-
-    local label = CreateObfuscatedInstance("TextLabel", toggleFrame)
-    label.Size = UDim2.new(1, -70, 1, 0)
-    label.Position = UDim2.new(0, 12, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = config.Name or "Toggle"
-    label.TextColor3 = self.CurrentTheme.Text
-    label.TextSize = 14
-    label.Font = Enum.Font.GothamSemibold
-    label.TextXAlignment = Enum.TextXAlignment.Left
-
-    local toggleBg = CreateObfuscatedInstance("Frame", toggleFrame)
-    toggleBg.Size = UDim2.new(0, 44, 0, 24)
-    toggleBg.Position = UDim2.new(1, -56, 0, 8)
-    toggleBg.BackgroundColor3 = self.CurrentTheme.Secondary
-    toggleBg.BorderSizePixel = 0
-
-    Utils.UI:CreateCorner(toggleBg, UDim.new(1, 0))
-
-    local toggleCircle = CreateObfuscatedInstance("Frame", toggleBg)
-    toggleCircle.Size = UDim2.new(0, 20, 0, 20)
-    toggleCircle.Position = UDim2.new(0, 2, 0, 2)
-    toggleCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    toggleCircle.BorderSizePixel = 0
-
-    Utils.UI:CreateCorner(toggleCircle, UDim.new(1, 0))
-
-    local currentValue = config.CurrentValue or false
-
-    if config.Flag then
-        self.Flags[config.Flag] = currentValue
-    end
-
-    local function UpdateToggle(value)
-        currentValue = value
-
-        if value then
-            Utils.UI:Tween(toggleBg, {BackgroundColor3 = self.CurrentTheme.Success}, 0.2)
-            Utils.UI:Tween(toggleCircle, {Position = UDim2.new(0, 22, 0, 2)}, 0.2)
-        else
-            Utils.UI:Tween(toggleBg, {BackgroundColor3 = self.CurrentTheme.Secondary}, 0.2)
-            Utils.UI:Tween(toggleCircle, {Position = UDim2.new(0, 2, 0, 2)}, 0.2)
-        end
-
-        if config.Flag then
-            self.Flags[config.Flag] = value
-        end
-
-        if config.Callback then
-            pcall(config.Callback, value)
-        end
-    end
-
-    local clickArea = CreateObfuscatedInstance("TextButton", toggleFrame)
-    clickArea.Size = UDim2.new(1, 0, 1, 0)
-    clickArea.BackgroundTransparency = 1
-    clickArea.Text = ""
-    clickArea.ZIndex = 2
-
-    clickArea.MouseButton1Click:Connect(function()
-        UpdateToggle(not currentValue)
-    end)
-
-    UpdateToggle(currentValue)
-
-    local toggleObj = {
-        Instance = toggleFrame,
-        CurrentValue = currentValue,
-        Set = function(self, value)
-            UpdateToggle(value)
-            self.CurrentValue = value
-        end
-    }
-
-    table.insert(tab.Elements, toggleObj)
-    return toggleObj
-end
-
-function Luva:CreateSlider(tab, config)
-    config = config or {}
-
-    if not tab or not tab.Instance then return end
-
-    local sliderFrame = CreateObfuscatedInstance("Frame", tab.Instance)
-    sliderFrame.Size = UDim2.new(1, 0, 0, 55)
-    sliderFrame.BackgroundColor3 = self.CurrentTheme.ElementBackground
-    sliderFrame.BorderSizePixel = 0
-    sliderFrame.LayoutOrder = #tab.Elements
-
-    Utils.UI:CreateCorner(sliderFrame, UDim.new(0, 8))
-    Utils.UI:CreateStroke(sliderFrame, self.CurrentTheme.ElementStroke)
-
-    local label = CreateObfuscatedInstance("TextLabel", sliderFrame)
-    label.Size = UDim2.new(0.5, 0, 0, 25)
-    label.Position = UDim2.new(0, 12, 0, 5)
-    label.BackgroundTransparency = 1
-    label.Text = config.Name or "Slider"
-    label.TextColor3 = self.CurrentTheme.Text
-    label.TextSize = 14
-    label.Font = Enum.Font.GothamSemibold
-    label.TextXAlignment = Enum.TextXAlignment.Left
-
-    local valueLabel = CreateObfuscatedInstance("TextLabel", sliderFrame)
-    valueLabel.Size = UDim2.new(0.5, -20, 0, 25)
-    valueLabel.Position = UDim2.new(0.5, 8, 0, 5)
-    valueLabel.BackgroundTransparency = 1
-    valueLabel.Text = tostring(config.CurrentValue or config.Range[1] or 0) .. (config.Suffix or "")
-    valueLabel.TextColor3 = self.CurrentTheme.Primary
-    valueLabel.TextSize = 14
-    valueLabel.Font = Enum.Font.GothamBold
-    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
-
-    local sliderBg = CreateObfuscatedInstance("Frame", sliderFrame)
-    sliderBg.Size = UDim2.new(1, -24, 0, 8)
-    sliderBg.Position = UDim2.new(0, 12, 0, 35)
-    sliderBg.BackgroundColor3 = self.CurrentTheme.Secondary
-    sliderBg.BorderSizePixel = 0
-
-    Utils.UI:CreateCorner(sliderBg, UDim.new(1, 0))
-
-    local sliderFill = CreateObfuscatedInstance("Frame", sliderBg)
-    sliderFill.Size = UDim2.new(0, 0, 1, 0)
-    sliderFill.BackgroundColor3 = self.CurrentTheme.Primary
-    sliderFill.BorderSizePixel = 0
-
-    Utils.UI:CreateCorner(sliderFill, UDim.new(1, 0))
-
-    local sliderKnob = CreateObfuscatedInstance("Frame", sliderBg)
-    sliderKnob.Size = UDim2.new(0, 16, 0, 16)
-    sliderKnob.Position = UDim2.new(0, -8, 0.5, -8)
-    sliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    sliderKnob.BorderSizePixel = 0
-
-    Utils.UI:CreateCorner(sliderKnob, UDim.new(1, 0))
-
-    local range = config.Range or {0, 100}
-    local increment = config.Increment or 1
-    local currentValue = config.CurrentValue or range[1]
-
-    if config.Flag then
-        self.Flags[config.Flag] = currentValue
-    end
-
-    local function UpdateSlider(value)
-        value = math.clamp(value, range[1], range[2])
-        value = math.floor(value / increment + 0.5) * increment
-
-        currentValue = value
-
-        local percent = (value - range[1]) / (range[2] - range[1])
-        sliderFill.Size = UDim2.new(percent, 0, 1, 0)
-        sliderKnob.Position = UDim2.new(percent, -8, 0.5, -8)
-        valueLabel.Text = tostring(value) .. (config.Suffix or "")
-
-        if config.Flag then
-            self.Flags[config.Flag] = value
-        end
-
-        if config.Callback then
-            pcall(config.Callback, value)
-        end
-    end
-
-    local dragging = false
-
-    sliderBg.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or
-           input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            local pos = math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
-            UpdateSlider(range[1] + pos * (range[2] - range[1]))
-        end
-    end)
-
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or
-                         input.UserInputType == Enum.UserInputType.Touch) then
-            local pos = math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
-            UpdateSlider(range[1] + pos * (range[2] - range[1]))
-        end
-    end)
-
-    game:GetService("UserInputService").InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or
-           input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-
-    UpdateSlider(currentValue)
-
-    local sliderObj = {
-        Instance = sliderFrame,
-        CurrentValue = currentValue,
-        Set = function(self, value)
-            UpdateSlider(value)
-            self.CurrentValue = value
-        end
-    }
-
-    table.insert(tab.Elements, sliderObj)
-    return sliderObj
-end
-
-function Luva:CreateDropdown(tab, config)
-    config = config or {}
-
-    if not tab or not tab.Instance then return end
-
-    local dropdownFrame = CreateObfuscatedInstance("Frame", tab.Instance)
-    dropdownFrame.Size = UDim2.new(1, 0, 0, 40)
-    dropdownFrame.BackgroundColor3 = self.CurrentTheme.ElementBackground
-    dropdownFrame.BorderSizePixel = 0
-    dropdownFrame.ClipsDescendants = true
-    dropdownFrame.LayoutOrder = #tab.Elements
-
-    Utils.UI:CreateCorner(dropdownFrame, UDim.new(0, 8))
-    Utils.UI:CreateStroke(dropdownFrame, self.CurrentTheme.ElementStroke)
-
-    local label = CreateObfuscatedInstance("TextLabel", dropdownFrame)
-    label.Size = UDim2.new(1, -50, 0, 40)
-    label.Position = UDim2.new(0, 12, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = config.Name or "Dropdown"
-    label.TextColor3 = self.CurrentTheme.Text
-    label.TextSize = 14
-    label.Font = Enum.Font.GothamSemibold
-    label.TextXAlignment = Enum.TextXAlignment.Left
-
-    local arrow = CreateObfuscatedInstance("TextLabel", dropdownFrame)
-    arrow.Size = UDim2.new(0, 30, 0, 40)
-    arrow.Position = UDim2.new(1, -35, 0, 0)
-    arrow.BackgroundTransparency = 1
-    arrow.Text = "▼"
-    arrow.TextColor3 = self.CurrentTheme.TextDark
-    arrow.TextSize = 14
-    arrow.Font = Enum.Font.GothamBold
-
-    local optionsFrame = CreateObfuscatedInstance("Frame", dropdownFrame)
-    optionsFrame.Size = UDim2.new(1, 0, 0, 0)
-    optionsFrame.Position = UDim2.new(0, 0, 0, 40)
-    optionsFrame.BackgroundTransparency = 1
-    optionsFrame.Visible = false
-
-    local optionsLayout = CreateObfuscatedInstance("UIListLayout", optionsFrame)
-    optionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    optionsLayout.Padding = UDim.new(0, 2)
-
-    local options = config.Options or {}
-    local currentOption = config.CurrentOption or {}
-    local multipleOptions = config.MultipleOptions or false
-    local isOpen = false
-
-    if config.Flag then
-        self.Flags[config.Flag] = currentOption
-    end
-
-    local optionButtons = {}
-
-    local function RefreshOptions(newOptions)
-        options = newOptions or {}
-
-        for _, btn in ipairs(optionButtons) do
-            btn:Destroy()
-        end
-        optionButtons = {}
-
-        for i, option in ipairs(options) do
-            local optionBtn = CreateObfuscatedInstance("TextButton", optionsFrame)
-            optionBtn.Size = UDim2.new(1, -10, 0, 30)
-            optionBtn.Position = UDim2.new(0, 5, 0, 0)
-            optionBtn.BackgroundColor3 = self.CurrentTheme.Secondary
-            optionBtn.Text = option
-            optionBtn.TextColor3 = self.CurrentTheme.Text
-            optionBtn.TextSize = 13
-            optionBtn.Font = Enum.Font.Gotham
-            optionBtn.LayoutOrder = i
-
-            Utils.UI:CreateCorner(optionBtn, UDim.new(0, 6))
-
-            optionBtn.MouseButton1Click:Connect(function()
-                if multipleOptions then
-
-                    local found = false
-                    for j, selected in ipairs(currentOption) do
-                        if selected == option then
-                            table.remove(currentOption, j)
-                            found = true
-                            break
-                        end
-                    end
-                    if not found then
-                        table.insert(currentOption, option)
-                    end
-                else
-                    currentOption = {option}
-                    isOpen = false
-                    optionsFrame.Visible = false
-                    Utils.UI:Tween(dropdownFrame, {Size = UDim2.new(1, 0, 0, 40)}, 0.2)
-                    Utils.UI:Tween(arrow, {Rotation = 0}, 0.2)
-                end
-
-                label.Text = config.Name .. ": " .. table.concat(currentOption, ", ")
-
-                if config.Flag then
-                    self.Flags[config.Flag] = currentOption
-                end
-
-                if config.Callback then
-                    pcall(config.Callback, currentOption)
-                end
-            end)
-
-            table.insert(optionButtons, optionBtn)
-        end
-
-        optionsFrame.Size = UDim2.new(1, 0, 0, #options * 32)
-    end
-
-    local clickArea = CreateObfuscatedInstance("TextButton", dropdownFrame)
-    clickArea.Size = UDim2.new(1, 0, 0, 40)
-    clickArea.BackgroundTransparency = 1
-    clickArea.Text = ""
-    clickArea.ZIndex = 2
-
-    clickArea.MouseButton1Click:Connect(function()
-        isOpen = not isOpen
-
-        if isOpen then
-            optionsFrame.Visible = true
-            Utils.UI:Tween(dropdownFrame, {Size = UDim2.new(1, 0, 0, 40 + optionsFrame.Size.Y.Offset)}, 0.2)
-            Utils.UI:Tween(arrow, {Rotation = 180}, 0.2)
-        else
-            Utils.UI:Tween(dropdownFrame, {Size = UDim2.new(1, 0, 0, 40)}, 0.2)
-            Utils.UI:Tween(arrow, {Rotation = 0}, 0.2)
-            task.wait(0.2)
-            optionsFrame.Visible = false
-        end
-    end)
-
-    RefreshOptions(options)
-
-    if #currentOption > 0 then
-        label.Text = config.Name .. ": " .. table.concat(currentOption, ", ")
-    end
-
-    local dropdownObj = {
-        Instance = dropdownFrame,
-        CurrentOption = currentOption,
-        Refresh = function(self, newOptions)
-            RefreshOptions(newOptions)
-        end,
-        Set = function(self, newOption)
-            currentOption = newOption
-            label.Text = config.Name .. ": " .. table.concat(currentOption, ", ")
-
-            if config.Flag then
-                self.Flags[config.Flag] = currentOption
-            end
-
-            if config.Callback then
-                pcall(config.Callback, currentOption)
-            end
-        end
-    }
-
-    table.insert(tab.Elements, dropdownObj)
-    return dropdownObj
-end
-
-function Luva:CreateInput(tab, config)
-    config = config or {}
-
-    if not tab or not tab.Instance then return end
-
-    local inputFrame = CreateObfuscatedInstance("Frame", tab.Instance)
-    inputFrame.Size = UDim2.new(1, 0, 0, 40)
-    inputFrame.BackgroundColor3 = self.CurrentTheme.ElementBackground
-    inputFrame.BorderSizePixel = 0
-    inputFrame.LayoutOrder = #tab.Elements
-
-    Utils.UI:CreateCorner(inputFrame, UDim.new(0, 8))
-    Utils.UI:CreateStroke(inputFrame, self.CurrentTheme.ElementStroke)
-
-    local label = CreateObfuscatedInstance("TextLabel", inputFrame)
-    label.Size = UDim2.new(0.4, 0, 1, 0)
-    label.Position = UDim2.new(0, 12, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = config.Name or "Input"
-    label.TextColor3 = self.CurrentTheme.Text
-    label.TextSize = 14
-    label.Font = Enum.Font.GothamSemibold
-    label.TextXAlignment = Enum.TextXAlignment.Left
-
-    local textBox = CreateObfuscatedInstance("TextBox", inputFrame)
-    textBox.Size = UDim2.new(0.6, -20, 0, 30)
-    textBox.Position = UDim2.new(0.4, 8, 0, 5)
-    textBox.BackgroundColor3 = self.CurrentTheme.Secondary
-    textBox.Text = config.CurrentValue or ""
-    textBox.PlaceholderText = config.PlaceholderText or "Enter text..."
-    textBox.TextColor3 = self.CurrentTheme.Text
-    textBox.PlaceholderColor3 = self.CurrentTheme.TextDark
-    textBox.TextSize = 13
-    textBox.Font = Enum.Font.Gotham
-    textBox.ClearTextOnFocus = false
-
-    Utils.UI:CreateCorner(textBox, UDim.new(0, 6))
-
-    if config.Flag then
-        self.Flags[config.Flag] = textBox.Text
-    end
-
-    textBox.FocusLost:Connect(function()
-        if config.RemoveTextAfterFocusLost then
-            local text = textBox.Text
-            textBox.Text = ""
-
-            if config.Flag then
-                self.Flags[config.Flag] = text
-            end
-
-            if config.Callback then
-                pcall(config.Callback, text)
-            end
-        else
-            if config.Flag then
-                self.Flags[config.Flag] = textBox.Text
-            end
-
-            if config.Callback then
-                pcall(config.Callback, textBox.Text)
-            end
-        end
-    end)
-
-    local inputObj = {
-        Instance = inputFrame,
-        TextBox = textBox,
-        Set = function(self, text)
-            textBox.Text = text or ""
-
-            if config.Flag then
-                Luva.Flags[config.Flag] = textBox.Text
-            end
-
-            if config.Callback then
-                pcall(config.Callback, textBox.Text)
-            end
-        end
-    }
-
-    table.insert(tab.Elements, inputObj)
-    return inputObj
-end
-
-function Luva:CreateColorPicker(tab, config)
-    config = config or {}
-
-    if not tab or not tab.Instance then return end
-
-    local pickerFrame = CreateObfuscatedInstance("Frame", tab.Instance)
-    pickerFrame.Size = UDim2.new(1, 0, 0, 40)
-    pickerFrame.BackgroundColor3 = self.CurrentTheme.ElementBackground
-    pickerFrame.BorderSizePixel = 0
-    pickerFrame.ClipsDescendants = true
-    pickerFrame.LayoutOrder = #tab.Elements
-
-    Utils.UI:CreateCorner(pickerFrame, UDim.new(0, 8))
-    Utils.UI:CreateStroke(pickerFrame, self.CurrentTheme.ElementStroke)
-
-    local label = CreateObfuscatedInstance("TextLabel", pickerFrame)
-    label.Size = UDim2.new(1, -60, 0, 40)
-    label.Position = UDim2.new(0, 12, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = config.Name or "Color Picker"
-    label.TextColor3 = self.CurrentTheme.Text
-    label.TextSize = 14
-    label.Font = Enum.Font.GothamSemibold
-    label.TextXAlignment = Enum.TextXAlignment.Left
-
-    local colorPreview = CreateObfuscatedInstance("Frame", pickerFrame)
-    colorPreview.Size = UDim2.new(0, 30, 0, 30)
-    colorPreview.Position = UDim2.new(1, -42, 0, 5)
-    colorPreview.BackgroundColor3 = config.Color or Color3.fromRGB(255, 255, 255)
-    colorPreview.BorderSizePixel = 0
-
-    Utils.UI:CreateCorner(colorPreview, UDim.new(0, 6))
-
-    local pickerPanel = CreateObfuscatedInstance("Frame", pickerFrame)
-    pickerPanel.Size = UDim2.new(1, 0, 0, 200)
-    pickerPanel.Position = UDim2.new(0, 0, 0, 40)
-    pickerPanel.BackgroundTransparency = 1
-    pickerPanel.Visible = false
-
-    local hueSlider = CreateObfuscatedInstance("Frame", pickerPanel)
-    hueSlider.Size = UDim2.new(1, -20, 0, 20)
-    hueSlider.Position = UDim2.new(0, 10, 0, 10)
-    hueSlider.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    hueSlider.BorderSizePixel = 0
-
-    Utils.UI:CreateCorner(hueSlider, UDim.new(0, 4))
-
-    local hueGradient = CreateObfuscatedInstance("UIGradient", hueSlider)
-    hueGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-        ColorSequenceKeypoint.new(0.167, Color3.fromRGB(255, 255, 0)),
-        ColorSequenceKeypoint.new(0.333, Color3.fromRGB(0, 255, 0)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
-        ColorSequenceKeypoint.new(0.667, Color3.fromRGB(0, 0, 255)),
-        ColorSequenceKeypoint.new(0.833, Color3.fromRGB(255, 0, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
-    }
-
-    local svBox = CreateObfuscatedInstance("Frame", pickerPanel)
-    svBox.Size = UDim2.new(1, -20, 0, 120)
-    svBox.Position = UDim2.new(0, 10, 0, 40)
-    svBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    svBox.BorderSizePixel = 0
-
-    Utils.UI:CreateCorner(svBox, UDim.new(0, 4))
-
-    local svGradient1 = CreateObfuscatedInstance("UIGradient", svBox)
-    svGradient1.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
-    }
-    svGradient1.Rotation = 0
-
-    local svGradient2 = CreateObfuscatedInstance("UIGradient", svBox)
-    svGradient2.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
-    }
-    svGradient2.Transparency = NumberSequence.new{
-        NumberSequenceKeypoint.new(0, 0),
-        NumberSequenceKeypoint.new(1, 1)
-    }
-    svGradient2.Rotation = -90
-
-    local rgbFrame = CreateObfuscatedInstance("Frame", pickerPanel)
-    rgbFrame.Size = UDim2.new(1, -20, 0, 30)
-    rgbFrame.Position = UDim2.new(0, 10, 0, 170)
-    rgbFrame.BackgroundTransparency = 1
-
-    local rInput = self:CreateRGBInput(rgbFrame, "R", 0)
-    local gInput = self:CreateRGBInput(rgbFrame, "G", 70)
-    local bInput = self:CreateRGBInput(rgbFrame, "B", 140)
-
-    local hue = 0
-    local sat = 1
-    local val = 1
-    local currentColor = config.Color or Color3.fromRGB(255, 255, 255)
-
-    if config.Flag then
-        self.Flags[config.Flag] = currentColor
-    end
-
-    local function UpdateColor(color)
-        currentColor = color
-        colorPreview.BackgroundColor3 = color
-
-        local r, g, b = math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255)
-        rInput.Text = tostring(r)
-        gInput.Text = tostring(g)
-        bInput.Text = tostring(b)
-
-        if config.Flag then
-            self.Flags[config.Flag] = color
-        end
-
-        if config.Callback then
-            pcall(config.Callback, color)
-        end
-    end
-
-    local hueDragging = false
-
-    hueSlider.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            hueDragging = true
-            hue = math.clamp((input.Position.X - hueSlider.AbsolutePosition.X) / hueSlider.AbsoluteSize.X, 0, 1)
-            svGradient1.Color = ColorSequence.new{
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-                ColorSequenceKeypoint.new(1, Color3.fromHSV(hue, 1, 1))
-            }
-            UpdateColor(Color3.fromHSV(hue, sat, val))
-        end
-    end)
-
-    local svDragging = false
-
-    svBox.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            svDragging = true
-            sat = math.clamp((input.Position.X - svBox.AbsolutePosition.X) / svBox.AbsoluteSize.X, 0, 1)
-            val = 1 - math.clamp((input.Position.Y - svBox.AbsolutePosition.Y) / svBox.AbsoluteSize.Y, 0, 1)
-            UpdateColor(Color3.fromHSV(hue, sat, val))
-        end
-    end)
-
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if hueDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            hue = math.clamp((input.Position.X - hueSlider.AbsolutePosition.X) / hueSlider.AbsoluteSize.X, 0, 1)
-            svGradient1.Color = ColorSequence.new{
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-                ColorSequenceKeypoint.new(1, Color3.fromHSV(hue, 1, 1))
-            }
-            UpdateColor(Color3.fromHSV(hue, sat, val))
-        end
-
-        if svDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            sat = math.clamp((input.Position.X - svBox.AbsolutePosition.X) / svBox.AbsoluteSize.X, 0, 1)
-            val = 1 - math.clamp((input.Position.Y - svBox.AbsolutePosition.Y) / svBox.AbsoluteSize.Y, 0, 1)
-            UpdateColor(Color3.fromHSV(hue, sat, val))
-        end
-    end)
-
-    game:GetService("UserInputService").InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            hueDragging = false
-            svDragging = false
-        end
-    end)
-
-    local isOpen = false
-
-    local clickArea = CreateObfuscatedInstance("TextButton", pickerFrame)
-    clickArea.Size = UDim2.new(1, 0, 0, 40)
-    clickArea.BackgroundTransparency = 1
-    clickArea.Text = ""
-    clickArea.ZIndex = 2
-
-    clickArea.MouseButton1Click:Connect(function()
-        isOpen = not isOpen
-
-        if isOpen then
-            pickerPanel.Visible = true
-            Utils.UI:Tween(pickerFrame, {Size = UDim2.new(1, 0, 0, 250)}, 0.2)
-        else
-            Utils.UI:Tween(pickerFrame, {Size = UDim2.new(1, 0, 0, 40)}, 0.2)
-            task.wait(0.2)
-            pickerPanel.Visible = false
-        end
-    end)
-
-    UpdateColor(currentColor)
-
-    local pickerObj = {
-        Instance = pickerFrame,
-        CurrentColor = currentColor,
-        Set = function(self, color)
-            UpdateColor(color)
-            self.CurrentColor = color
-        end
-    }
-
-    table.insert(tab.Elements, pickerObj)
-    return pickerObj
-end
-
-function Luva:CreateRGBInput(parent, label, xPos)
-    local frame = CreateObfuscatedInstance("Frame", parent)
-    frame.Size = UDim2.new(0, 60, 1, 0)
-    frame.Position = UDim2.new(0, xPos, 0, 0)
-    frame.BackgroundTransparency = 1
-
-    local labelText = CreateObfuscatedInstance("TextLabel", frame)
-    labelText.Size = UDim2.new(0, 20, 1, 0)
-    labelText.BackgroundTransparency = 1
-    labelText.Text = label
-    labelText.TextColor3 = self.CurrentTheme.Text
-    labelText.TextSize = 12
-    labelText.Font = Enum.Font.GothamBold
-
-    local input = CreateObfuscatedInstance("TextBox", frame)
-    input.Size = UDim2.new(0, 35, 1, 0)
-    input.Position = UDim2.new(0, 25, 0, 0)
-    input.BackgroundColor3 = self.CurrentTheme.Secondary
-    input.Text = "255"
-    input.TextColor3 = self.CurrentTheme.Text
-    input.TextSize = 12
-    input.Font = Enum.Font.Gotham
-    input.ClearTextOnFocus = false
-
-    Utils.UI:CreateCorner(input, UDim.new(0, 4))
-
-    return input
-end
-
-function Luva:CreateKeybind(tab, config)
-    config = config or {}
-
-    if not tab or not tab.Instance then return end
-
-    local keybindFrame = CreateObfuscatedInstance("Frame", tab.Instance)
-    keybindFrame.Size = UDim2.new(1, 0, 0, 40)
-    keybindFrame.BackgroundColor3 = self.CurrentTheme.ElementBackground
-    keybindFrame.BorderSizePixel = 0
-    keybindFrame.LayoutOrder = #tab.Elements
-
-    Utils.UI:CreateCorner(keybindFrame, UDim.new(0, 8))
-    Utils.UI:CreateStroke(keybindFrame, self.CurrentTheme.ElementStroke)
-
-    local label = CreateObfuscatedInstance("TextLabel", keybindFrame)
-    label.Size = UDim2.new(0.6, 0, 1, 0)
-    label.Position = UDim2.new(0, 12, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = config.Name or "Keybind"
-    label.TextColor3 = self.CurrentTheme.Text
-    label.TextSize = 14
-    label.Font = Enum.Font.GothamSemibold
-    label.TextXAlignment = Enum.TextXAlignment.Left
-
-    local keyButton = CreateObfuscatedInstance("TextButton", keybindFrame)
-    keyButton.Size = UDim2.new(0.4, -20, 0, 30)
-    keyButton.Position = UDim2.new(0.6, 8, 0, 5)
-    keyButton.BackgroundColor3 = self.CurrentTheme.Secondary
-    keyButton.Text = config.CurrentKeybind or "None"
-    keyButton.TextColor3 = self.CurrentTheme.Text
-    keyButton.TextSize = 13
-    keyButton.Font = Enum.Font.GothamBold
-    keyButton.AutoButtonColor = false
-
-    Utils.UI:CreateCorner(keyButton, UDim.new(0, 6))
-
-    local currentKeybind = config.CurrentKeybind or "None"
-    local listening = false
-    local holdToInteract = config.HoldToInteract or false
-
-    if config.Flag then
-        self.Flags[config.Flag] = currentKeybind
-    end
-
-    keyButton.MouseButton1Click:Connect(function()
-        listening = true
-        keyButton.Text = "..."
-    end)
-
-    game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
-        if listening and not gameProcessed then
-            if input.UserInputType == Enum.UserInputType.Keyboard then
-                currentKeybind = tostring(input.KeyCode):gsub("Enum.KeyCode.", "")
-                keyButton.Text = currentKeybind
-                listening = false
-
-                if config.Flag then
-                    self.Flags[config.Flag] = currentKeybind
-                end
-            end
-        elseif not listening and not gameProcessed then
-            local inputKey = tostring(input.KeyCode):gsub("Enum.KeyCode.", "")
-            if inputKey == currentKeybind then
-                if holdToInteract then
-                    if config.Callback then
-                        pcall(config.Callback, true)
-                    end
-                else
-                    if config.Callback then
-                        pcall(config.Callback, inputKey)
-                    end
-                end
-            end
-        end
-    end)
-
-    game:GetService("UserInputService").InputEnded:Connect(function(input)
-        if holdToInteract then
-            local inputKey = tostring(input.KeyCode):gsub("Enum.KeyCode.", "")
-            if inputKey == currentKeybind then
-                if config.Callback then
-                    pcall(config.Callback, false)
-                end
-            end
-        end
-    end)
-
-    local keybindObj = {
-        Instance = keybindFrame,
-        CurrentKeybind = currentKeybind,
-        Set = function(self, key)
-            currentKeybind = key
-            keyButton.Text = key
-
-            if config.Flag then
-                Luva.Flags[config.Flag] = key
-            end
-        end
-    }
-
-    table.insert(tab.Elements, keybindObj)
-    return keybindObj
-end
-
-function Luva:CreateLabel(tab, config)
-    config = config or {}
-
-    if not tab or not tab.Instance then return end
-
-    local labelFrame = CreateObfuscatedInstance("Frame", tab.Instance)
-    labelFrame.Size = UDim2.new(1, 0, 0, 30)
-    labelFrame.BackgroundTransparency = 1
-    labelFrame.LayoutOrder = #tab.Elements
-
-    local label = CreateObfuscatedInstance("TextLabel", labelFrame)
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = config.Text or "Label"
-    label.TextColor3 = config.Color or self.CurrentTheme.Text
-    label.TextSize = 14
-    label.Font = Enum.Font.Gotham
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextWrapped = true
-
-    if config.Icon then
-        local icon = CreateObfuscatedInstance("ImageLabel", labelFrame)
-        icon.Size = UDim2.new(0, 20, 0, 20)
-        icon.Position = UDim2.new(0, 0, 0, 5)
-        icon.BackgroundTransparency = 1
-        icon.Image = config.Icon
-        icon.ImageColor3 = config.Color or self.CurrentTheme.Text
-
-        label.Size = UDim2.new(1, -30, 1, 0)
-        label.Position = UDim2.new(0, 28, 0, 0)
-    end
-
-    local labelObj = {
-        Instance = labelFrame,
-        Set = function(self, text, icon, color)
-            label.Text = text or "Label"
-            if color then
-                label.TextColor3 = color
-            end
-            if icon then
-                local iconLabel = labelFrame:FindFirstChildOfClass("ImageLabel")
-                if iconLabel then
-                    iconLabel.Image = icon
-                end
-            end
-        end
-    }
-
-    table.insert(tab.Elements, labelObj)
-    return labelObj
-end
-
-function Luva:CreateParagraph(tab, config)
-    config = config or {}
-
-    if not tab or not tab.Instance then return end
-
-    local paragraphFrame = CreateObfuscatedInstance("Frame", tab.Instance)
-    paragraphFrame.Size = UDim2.new(1, 0, 0, 60)
-    paragraphFrame.BackgroundColor3 = self.CurrentTheme.ElementBackground
-    paragraphFrame.BorderSizePixel = 0
-    paragraphFrame.LayoutOrder = #tab.Elements
-
-    Utils.UI:CreateCorner(paragraphFrame, UDim.new(0, 8))
-    Utils.UI:CreateStroke(paragraphFrame, self.CurrentTheme.ElementStroke)
-
-    local title = CreateObfuscatedInstance("TextLabel", paragraphFrame)
-    title.Size = UDim2.new(1, -20, 0, 25)
-    title.Position = UDim2.new(0, 10, 0, 5)
-    title.BackgroundTransparency = 1
-    title.Text = config.Title or "Title"
-    title.TextColor3 = self.CurrentTheme.Text
-    title.TextSize = 15
-    title.Font = Enum.Font.GothamBold
-    title.TextXAlignment = Enum.TextXAlignment.Left
-
-    local content = CreateObfuscatedInstance("TextLabel", paragraphFrame)
-    content.Size = UDim2.new(1, -20, 0, 25)
-    content.Position = UDim2.new(0, 10, 0, 30)
-    content.BackgroundTransparency = 1
-    content.Text = config.Content or "Content"
-    content.TextColor3 = self.CurrentTheme.TextDark
-    content.TextSize = 13
-    content.Font = Enum.Font.Gotham
-    content.TextXAlignment = Enum.TextXAlignment.Left
-    content.TextWrapped = true
-
-    local paragraphObj = {
-        Instance = paragraphFrame,
-        Set = function(self, data)
-            title.Text = data.Title or "Title"
-            content.Text = data.Content or "Content"
-        end
-    }
-
-    table.insert(tab.Elements, paragraphObj)
-    return paragraphObj
-end
-
-function Luva:SaveConfiguration(fileName)
-    if not fileName then return end
-
-    local configData = {}
-
-    for flag, value in pairs(self.Flags) do
-        if typeof(value) == "Color3" then
-            configData[flag] = {
-                Type = "Color3",
-                R = value.R,
-                G = value.G,
-                B = value.B
-            }
-        else
-            configData[flag] = value
-        end
-    end
-
-    local jsonData = game:GetService("HttpService"):JSONEncode(configData)
-
-    if writefile then
-        pcall(function()
-            if not isfolder("LuvaConfigs") then
-                makefolder("LuvaConfigs")
-            end
-            writefile("LuvaConfigs/" .. fileName .. ".json", jsonData)
-        end)
-    end
-end
-
-function Luva:LoadConfiguration(fileName)
-    if not fileName then return end
-
-    if readfile and isfile then
-        pcall(function()
-            if isfile("LuvaConfigs/" .. fileName .. ".json") then
-                local jsonData = readfile("LuvaConfigs/" .. fileName .. ".json")
-                local configData = game:GetService("HttpService"):JSONDecode(jsonData)
-
-                for flag, value in pairs(configData) do
-                    if type(value) == "table" and value.Type == "Color3" then
-                        self.Flags[flag] = Color3.new(value.R, value.G, value.B)
-                    else
-                        self.Flags[flag] = value
-                    end
-                end
-            end
-        end)
-    end
-end
-
-function Luva:SetTheme(themeName)
-    local theme = Themes[themeName] or self.CustomThemes[themeName]
-    if not theme then
-        warn("Theme '" .. themeName .. "' not found!")
-        return
-    end
-
-    self.CurrentTheme = theme
-
-    for _, window in ipairs(self.Windows) do
-        self:UpdateWindowTheme(window, theme)
-    end
-end
-
-function Luva:RegisterCustomTheme(name, theme)
-    self.CustomThemes[name] = theme
-    return theme
-end
-
-function Luva:UpdateWindowTheme(window, theme)
-    if not window or not window.Instance then return end
-
-    window.Instance.BackgroundColor3 = theme.Background
-    window.Topbar.BackgroundColor3 = theme.Topbar
-    window.Sidebar.BackgroundColor3 = theme.Sidebar
-    window.ContentArea.BackgroundColor3 = theme.Background
-
-end
-
-function Luva:GetThemes()
-    local themeList = {}
-    for name, _ in pairs(Themes) do
-        table.insert(themeList, name)
-    end
-    for name, _ in pairs(self.CustomThemes) do
-        table.insert(themeList, name)
-    end
-    return themeList
-end
-
-function Luva:CreateKeySystem(config)
-    config = config or {}
-
-    local keyWindow = self:CreateWindow({
-        Name = config.Title or "Key System",
-        Size = UDim2.new(0, 400, 0, 250)
-    })
-
-    local tab = self:CreateTab(keyWindow, {Name = "Key"})
-
-    self:CreateLabel(tab, {Text = config.Subtitle or "Enter your key to continue"})
-
-    if config.Note then
-        self:CreateLabel(tab, {Text = config.Note, Color = self.CurrentTheme.TextDark})
-    end
-
-    local keyInput = self:CreateInput(tab, {
-        Name = "Key",
-        PlaceholderText = "Enter key..."
-    })
-
-    local validKeys = config.Keys or {}
-    local fileName = config.FileName or "LuvaKey"
-    local saveKey = config.SaveKey ~= false
-
-    self:CreateButton(tab, {
-        Name = "Submit",
-        Callback = function()
-            local enteredKey = keyInput.TextBox.Text
-
-            local isValid = false
-            for _, key in ipairs(validKeys) do
-                if enteredKey == key then
-                    isValid = true
-                    break
-                end
-            end
-
-            if not isValid and saveKey and readfile then
-                pcall(function()
-                    if isfile(fileName .. ".txt") then
-                        local savedKey = readfile(fileName .. ".txt")
-                        if savedKey == enteredKey then
-                            isValid = true
-                        end
-                    end
-                end)
-            end
-
-            if isValid then
-
-                if saveKey and writefile then
-                    pcall(function()
-                        writefile(fileName .. ".txt", enteredKey)
-                    end)
-                end
-
-                keyWindow:Destroy()
-
-                if config.Callback then
-                    pcall(config.Callback, true)
-                end
-            else
-
-                self.NotificationSystem:Error({
-                    Title = "Invalid Key",
-                    Content = "The key you entered is incorrect!",
-                    Duration = 3
-                })
-
-                if config.Callback then
-                    pcall(config.Callback, false)
-                end
-            end
-        end
-    })
-
-    return keyWindow
-end
-
-function Luva:PromptDiscordJoin(config)
-    config = config or {}
-
-    if not config.Enabled then return end
-
-    local invite = config.Invite or ""
-    local rememberJoins = config.RememberJoins ~= false
-
-    if rememberJoins and isfile then
-        local joined = pcall(function()
-            return isfile("LuvaDiscordJoined.txt")
-        end)
-        if joined then return end
-    end
-
-    local discordWindow = self:CreateWindow({
-        Name = "Discord",
-        Size = UDim2.new(0, 350, 0, 200)
-    })
-
-    local tab = self:CreateTab(discordWindow, {Name = "Join"})
-
-    self:CreateLabel(tab, {Text = "Join our Discord server!"})
-    self:CreateLabel(tab, {Text = "discord.gg/" .. invite, Color = self.CurrentTheme.Primary})
-
-    self:CreateButton(tab, {
-        Name = "Join Discord",
-        Callback = function()
-            if request then
-                pcall(function()
-                    request({
-                        Url = "http://127.0.0.1:6463/rpc?v=1",
-                        Method = "POST",
-                        Headers = {
-                            ["Content-Type"] = "application/json",
-                            ["Origin"] = "https://discord.com"
-                        },
-                        Body = game:GetService("HttpService"):JSONEncode({
-                            cmd = "INVITE_BROWSER",
-                            nonce = game:GetService("HttpService"):GenerateGUID(false),
-                            args = {code = invite}
-                        })
-                    })
-                end)
-            end
-
-            if rememberJoins and writefile then
-                pcall(function()
-                    writefile("LuvaDiscordJoined.txt", "true")
-                end)
-            end
-
-            discordWindow:Destroy()
-        end
-    })
-
-    self:CreateButton(tab, {
-        Name = "Skip",
-        Callback = function()
-            discordWindow:Destroy()
-        end
-    })
-end
-
-function Luva:Notify(data)
-    if not self.NotificationSystem then
-
-        local guiService = game:GetService("CoreGui")
-        local notifGui = CreateObfuscatedInstance("ScreenGui")
-        notifGui.Name = GenerateDynamicName()
-        notifGui.ResetOnSpawn = false
-        notifGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-        pcall(function()
-            notifGui.Parent = guiService
-        end)
-
-        if not notifGui.Parent then
-            notifGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-        end
-
-        self.NotificationSystem = NotificationSystem.new(notifGui)
-    end
-
-    self.NotificationSystem:Notify(data)
-end
-
-function Luva:NotifySuccess(data)
-    self:Notify(data)
-end
-
-function Luva:NotifyWarning(data)
-    self:Notify(data)
-end
-
-function Luva:NotifyError(data)
-    self:Notify(data)
-end
-
-function Luva:SetVisibility(visible)
-    for _, window in ipairs(self.Windows) do
-        window:SetVisible(visible)
-    end
-end
-
-function Luva:IsVisible()
-    for _, window in ipairs(self.Windows) do
-        if window.IsVisible then
-            return true
-        end
-    end
-    return false
-end
-
-function Luva:Destroy()
-    for _, window in ipairs(self.Windows) do
-        pcall(function()
-            window:Destroy()
-        end)
-    end
-
-    self.Windows = {}
-    _G.LUVA_LOADED = nil
-    _G.LUVA = nil
-end
 
-Luva:Init()
 
-return Luva
+-- Interface Management
+
+local LuvaAssetId = customAssetId or 10804731440
+local Luva = useStudio and script.Parent:FindFirstChild('Luva') or game:GetObjects("rbxassetid://"..LuvaAssetId)[1]
+local buildAttempts = 0
+local correctBuild = false
+local warned
+local globalLoaded
+local luvaDestroyed = false -- True when LuvaLibrary:Destroy() is called
+
+repeat
+	if Luva:FindFirstChild('Build') and Luva.Build.Value == InterfaceBuild then
+		correctBuild = true
+		break
+	end
+
+	correctBuild = false
+
+	if not warned then
+		warn('Luva | Build Mismatch')
+		print('Luva may encounter issues as you are running an incompatible interface version ('.. ((Luva:FindFirstChild('Build') and Luva.Build.Value) or 'No Build') ..').\n\nThis version of Luva is intended for interface build '..InterfaceBuild..'.')
+		warned = true
+	end
+
+	local toDestroy
+	toDestroy, Luva = Luva, useStudio and script.Parent:FindFirstChild('Luva') or game:GetObjects("rbxassetid://"..LuvaAssetId)[1]
+	if toDestroy and not useStudio then toDestroy:Destroy() end
+
+	buildAttempts = buildAttempts + 1
+until buildAttempts >= 2
+
+Luva.Enabled = false
+
+if gethui then
+	Luva.Parent = gethui()
+elseif syn and syn.protect_gui then 
+	syn.protect_gui(Luva)
+	Luva.Parent = CoreGui
+elseif not useStudio and CoreGui:FindFirstChild("RobloxGui") then
+	Luva.Parent = CoreGui:FindFirstChild("RobloxGui")
+elseif not useStudio then
+	Luva.Parent = CoreGui
+end
+
+if gethui then
+	for _, Interface in ipairs(gethui():GetChildren()) do
+		if Interface.Name == Luva.Name and Interface ~= Luva then
+			Interface.Enabled = false
+			Interface.Name = "Luva-Old"
+		end
+	end
+elseif not useStudio then
+	for _, Interface in ipairs(CoreGui:GetChildren()) do
+		if Interface.Name == Luva.Name and Interface ~= Luva then
+			Interface.Enabled = false
+			Interface.Name = "Luva-Old"
+		end
+	end
+end
+
+if secureMode and not customAssetId then
+	secureNotify("default_asset", "Secure Mode", "You are using the default Luva asset ID. Set LUVA_ASSET_ID to a custom upload to avoid detection.")
+end
+
+do
+	local AssetPath = LuvaFolder.."/Assets"
+	local AssetBaseURL = "https://github.com/SiriusSoftwareLtd/Luva/blob/main/assets/"
+
+	local assetFiles = {
+		["111263549366178"] = AssetBaseURL.."111263549366178.png?raw=true",
+		["77891951053543"] = AssetBaseURL.."77891951053543.png?raw=true",
+		["78137979054938"] = AssetBaseURL.."78137979054938.png?raw=true",
+		["80503127983237"] = AssetBaseURL.."80503127983237.png?raw=true",
+		["10137832201"] = AssetBaseURL.."10137832201.png?raw=true",
+		["10137941941"] = AssetBaseURL.."10137941941.png?raw=true",
+		["11036884234"] = AssetBaseURL.."11036884234.png?raw=true",
+		["11413591840"] = AssetBaseURL.."11413591840.png?raw=true",
+		["11745872910"] = AssetBaseURL.."11745872910.png?raw=true",
+		["12577727209"] = AssetBaseURL.."12577727209.png?raw=true",
+		["18458939117"] = AssetBaseURL.."18458939117.png?raw=true",
+		["3259050989"] = AssetBaseURL.."3259050989.png?raw=true",
+		["3523728077"] = AssetBaseURL.."3523728077.png?raw=true",
+		["3602733521"] = AssetBaseURL.."3602733521.png?raw=true",
+		["IconChevronTopMedium"] = AssetBaseURL.."IconChevronTopMedium.png?raw=true",
+		["4483362458"] = AssetBaseURL.."4483362458.png?raw=true",
+		["5587865193"] = AssetBaseURL.."5587865193.png?raw=true",
+		["IconMagnifyingGlass2"] = AssetBaseURL.."IconMagnifyingGlass2.png?raw=true",
+	}
+
+	for id, _ in assetFiles do
+		customAssets[tostring(id)] = ""
+	end
+
+	local hasCustomAsset = type(getcustomasset) == "function"
+	local hasFilesystem = type(writefile) == "function" and type(makefolder) == "function" and type(isfile) == "function" and type(isfolder) == "function"
+
+	if hasCustomAsset and hasFilesystem then
+		local ok, err = pcall(function()
+			ensureFolder(LuvaFolder)
+			ensureFolder(AssetPath)
+
+			-- skip ids we've already tried so a dead asset can't loop the loader forever
+			local attempted = {}
+			local function nextToFetch()
+				for id, _ in assetFiles do
+					if not attempted[id] and not isfile(AssetPath.."/"..tostring(id)..".png") then
+						return id
+					end
+				end
+				return nil
+			end
+
+			if nextToFetch() then
+				task.spawn(function()
+					while true do
+						local id = nextToFetch()
+						if not id then break end
+						-- a failed request can hand back a nil/empty Body — never pass that to writefile
+						local ok, res = pcall(requestFunc, {Url = assetFiles[id], Method = "GET"})
+						if ok and type(res) == "table" and type(res.Body) == "string" and #res.Body > 0 then
+							pcall(writefile, AssetPath.."/"..tostring(id)..".png", res.Body)
+						end
+						-- mark after the attempt so the poll waits for real downloads but still skips a dead asset
+						attempted[id] = true
+						task.wait()
+					end
+				end)
+
+				while nextToFetch() do
+					task.wait(0.1)
+				end
+			end
+
+			for id, _ in assetFiles do
+				local success, asset = pcall(getcustomasset, AssetPath.."/"..tostring(id)..".png")
+				if success then
+					customAssets[tostring(id)] = asset
+				else
+					warn("Luva | Failed to load custom asset: "..tostring(id).." - "..tostring(asset))
+				end
+			end
+		end)
+
+		if not ok then
+			warn("Luva | Failed to load custom assets: "..tostring(err))
+			secureNotify("asset_load_fail", "Luva", "Failed to load custom assets. UI images may not display correctly.")
+		end
+	else
+		secureNotify("no_getcustomasset", "Luva", "Your executor does not support getcustomasset. Some UI images may not render correctly.")
+	end
+
+
+	Luva.Main.Shadow.Image.Image = customAssets[tostring(5587865193)]
+	Luva.Main.Topbar.Hide.Image = customAssets[tostring(10137832201)]
+	Luva.Main.Topbar.ChangeSize.Image = customAssets[tostring(10137941941)]
+	Luva.Main.Topbar.Settings.Image = customAssets[tostring(80503127983237)]
+	Luva.Main.Topbar.Icon.Image = customAssets[tostring(78137979054938)]
+	Luva.Main.Topbar.Search.Image = customAssets["IconMagnifyingGlass2"]
+	Luva.Main.Topbar.Search.ImageRectOffset = Vector2.new(0, 0)
+	Luva.Main.Topbar.Search.ImageRectSize = Vector2.new(0, 0)
+	Luva.Main.Elements.Template.Toggle.Switch.Shadow.Image = customAssets[tostring(3602733521)]
+	Luva.Main.Elements.Template.Slider.Main.Shadow.Image = customAssets[tostring(3602733521)]
+	Luva.Main.Elements.Template.Dropdown.Toggle.Image = customAssets["IconChevronTopMedium"]
+	Luva.Main.Elements.Template.Dropdown.Toggle.ImageRectOffset = Vector2.new(0, 0)
+	Luva.Main.Elements.Template.Dropdown.Toggle.ImageRectSize = Vector2.new(0, 0)
+	Luva.Main.Elements.Template.Label.Icon.Image = customAssets[tostring(11745872910)]
+	Luva.Main.Elements.Template.ColorPicker.CPBackground.MainCP.Image = customAssets[tostring(11413591840)]
+	Luva.Main.Elements.Template.ColorPicker.CPBackground.MainCP.MainPoint.Image = customAssets[tostring(3259050989)]
+	Luva.Main.Elements.Template.ColorPicker.ColorSlider.SliderPoint.Image = customAssets[tostring(3259050989)]
+	Luva.Main.TabList.Template.Image.Image = customAssets[tostring(4483362458)]
+	Luva.Main.Search.Search.Image = customAssets[tostring(18458939117)]
+	Luva.Main.Search.Shadow.Image = customAssets[tostring(5587865193)]
+	Luva.Notifications.Template.Icon.Image = customAssets[tostring(77891951053543)]
+	Luva.Notifications.Template.Shadow.Image = customAssets[tostring(3523728077)]
+	Luva.Loading.Banner.Image = customAssets[tostring(111263549366178)]
+
+end -- custom asset block
+
+local minSize = Vector2.new(1024, 768)
+local useMobileSizing
+
+if Luva.AbsoluteSize.X < minSize.X and Luva.AbsoluteSize.Y < minSize.Y then
+	useMobileSizing = true
+end
+
+local useMobilePrompt = false
+if UserInputService.TouchEnabled then
+	useMobilePrompt = true
+end
+
+
+-- Object Variables
+
+local Main = Luva.Main
+local MPrompt = Luva:FindFirstChild('Prompt')
+local Topbar = Main.Topbar
+local Elements = Main.Elements
+local LoadingFrame = Main.LoadingFrame
+local TabList = Main.TabList
+local dragBar = Luva:FindFirstChild('Drag')
+local dragInteract = dragBar and dragBar.Interact or nil
+local dragBarCosmetic = dragBar and dragBar.Drag or nil
+
+local dragOffset = 255
+local dragOffsetMobile = 150
+
+Luva.DisplayOrder = 100
+LoadingFrame.Version.Text = Release
+
+-- Thanks to Latte Softworks for the Lucide integration for Roblox
+local Icons = useStudio and require(script.Parent.icons) or loadWithTimeout('https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/refs/heads/main/icons.lua')
+-- Variables
+
+local CFileName = nil
+local CEnabled = false
+local Minimised = false
+local Hidden = false
+local Debounce = false
+local searchOpen = false
+local Notifications = Luva.Notifications
+local keybindConnections = {} -- For storing keybind connections to disconnect when Luva is destroyed
+
+local SelectedTheme = LuvaLibrary.Theme.Default
+
+local function ChangeTheme(Theme)
+	if typeof(Theme) == 'string' then
+		SelectedTheme = LuvaLibrary.Theme[Theme]
+	elseif typeof(Theme) == 'table' then
+		SelectedTheme = Theme
+	end
+
+	Luva.Main.BackgroundColor3 = SelectedTheme.Background
+	Luva.Main.Topbar.BackgroundColor3 = SelectedTheme.Topbar
+	Luva.Main.Topbar.CornerRepair.BackgroundColor3 = SelectedTheme.Topbar
+	Luva.Main.Shadow.Image.ImageColor3 = SelectedTheme.Shadow
+
+	Luva.Main.Topbar.ChangeSize.ImageColor3 = SelectedTheme.TextColor
+	Luva.Main.Topbar.Hide.ImageColor3 = SelectedTheme.TextColor
+	Luva.Main.Topbar.Search.ImageColor3 = SelectedTheme.TextColor
+	if Topbar:FindFirstChild('Settings') then
+		Luva.Main.Topbar.Settings.ImageColor3 = SelectedTheme.TextColor
+		Luva.Main.Topbar.Divider.BackgroundColor3 = SelectedTheme.ElementStroke
+	end
+
+	Main.Search.BackgroundColor3 = SelectedTheme.TextColor
+	Main.Search.Shadow.ImageColor3 = SelectedTheme.TextColor
+	Main.Search.Search.ImageColor3 = SelectedTheme.TextColor
+	Main.Search.Input.PlaceholderColor3 = SelectedTheme.TextColor
+	Main.Search.UIStroke.Color = SelectedTheme.SecondaryElementStroke
+
+	if Main:FindFirstChild('Notice') then
+		Main.Notice.BackgroundColor3 = SelectedTheme.Background
+	end
+
+	for _, text in ipairs(Luva:GetDescendants()) do
+		if text.Parent.Parent ~= Notifications then
+			if text:IsA('TextLabel') or text:IsA('TextBox') then text.TextColor3 = SelectedTheme.TextColor end
+		end
+	end
+
+	for _, TabPage in ipairs(Elements:GetChildren()) do
+		for _, Element in ipairs(TabPage:GetChildren()) do
+			if Element.ClassName == "Frame" and Element.Name ~= "Placeholder" and Element.Name ~= "SectionSpacing" and Element.Name ~= "Divider" and Element.Name ~= "SectionTitle" and Element.Name ~= "SearchTitle-fsefsefesfsefesfesfThanks" then
+				Element.BackgroundColor3 = SelectedTheme.ElementBackground
+				Element.UIStroke.Color = SelectedTheme.ElementStroke
+			end
+		end
+	end
+end
+
+local function getIcon(name : string): {id: number, imageRectSize: Vector2, imageRectOffset: Vector2}
+	if not Icons then
+		warn("Lucide Icons: Cannot use icons as icons library is not loaded")
+		return
+	end
+	name = string.match(string.lower(name), "^%s*(.*)%s*$") :: string
+	local sizedicons = Icons['48px']
+	local r = sizedicons[name]
+	if not r then
+		error("Lucide Icons: Failed to find icon by the name of \"" .. name .. "\"", 2)
+	end
+
+	local rirs = r[2]
+	local riro = r[3]
+
+	if type(r[1]) ~= "number" or type(rirs) ~= "table" or type(riro) ~= "table" then
+		error("Lucide Icons: Internal error: Invalid auto-generated asset entry")
+	end
+
+	local irs = Vector2.new(rirs[1], rirs[2])
+	local iro = Vector2.new(riro[1], riro[2])
+
+	local asset = {
+		id = r[1],
+		imageRectSize = irs,
+		imageRectOffset = iro,
+	}
+
+	return asset
+end
+local function getAssetUri(id: any): string
+	local assetUri = ""
+	if type(id) == "number" then
+		assetUri = "rbxassetid://" .. id
+	elseif type(id) == "string" and not Icons then
+		warn("Luva | Cannot use Lucide icons as icons library is not loaded")
+	else
+		warn("Luva | The icon argument must either be an icon ID (number) or a Lucide icon name (string)")
+	end
+	return assetUri
+end
+
+local function isCustomAsset(value)
+	return type(value) == "string" and (string.find(value, "rbxasset://") == 1 or string.find(value, "rbxthumb://") == 1)
+end
+
+local function resolveIcon(icon)
+	if not icon or icon == 0 then
+		return "", nil, nil
+	end
+
+	if isCustomAsset(icon) then
+		return icon, nil, nil
+	end
+
+	if secureMode then
+		secureNotify("icon_blocked", "Secure Mode", "Element icons using asset IDs or Lucide names are blocked. Use getcustomasset() for icons to stay undetected.")
+		return "", nil, nil
+	end
+
+	if typeof(icon) == "string" and Icons then
+		local asset = getIcon(icon)
+		return "rbxassetid://" .. asset.id, asset.imageRectOffset, asset.imageRectSize
+	else
+		return getAssetUri(icon), nil, nil
+	end
+end
+
+local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
+	local dragging = false
+	local relative = nil
+
+	local offset = Vector2.zero
+	local screenGui = object:FindFirstAncestorWhichIsA("ScreenGui")
+	if screenGui and screenGui.IgnoreGuiInset then
+		offset += getService('GuiService'):GetGuiInset()
+	end
+
+	local function connectFunctions()
+		if dragBar and enableTaptic then
+			dragBar.MouseEnter:Connect(function()
+				if not dragging and not Hidden then
+					TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.5, Size = UDim2.new(0, 120, 0, 4)}):Play()
+				end
+			end)
+
+			dragBar.MouseLeave:Connect(function()
+				if not dragging and not Hidden then
+					TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.7, Size = UDim2.new(0, 100, 0, 4)}):Play()
+				end
+			end)
+		end
+	end
+
+	connectFunctions()
+
+	dragObject.InputBegan:Connect(function(input, processed)
+		if processed then return end
+
+		local inputType = input.UserInputType.Name
+		if inputType == "MouseButton1" or inputType == "Touch" then
+			dragging = true
+
+			relative = object.AbsolutePosition + object.AbsoluteSize * object.AnchorPoint - UserInputService:GetMouseLocation()
+			if enableTaptic and not Hidden then
+				TweenService:Create(dragBarCosmetic, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 110, 0, 4), BackgroundTransparency = 0}):Play()
+			end
+		end
+	end)
+
+	local inputEnded = UserInputService.InputEnded:Connect(function(input)
+		if not dragging then return end
+
+		local inputType = input.UserInputType.Name
+		if inputType == "MouseButton1" or inputType == "Touch" then
+			dragging = false
+
+			if enableTaptic and not Hidden then
+				TweenService:Create(dragBarCosmetic, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 100, 0, 4), BackgroundTransparency = 0.7}):Play()
+			end
+		end
+	end)
+
+	local renderStepped = RunService.RenderStepped:Connect(function()
+		if dragging and not Hidden then
+			local position = UserInputService:GetMouseLocation() + relative + offset
+			if enableTaptic and tapticOffset then
+				TweenService:Create(object, TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = UDim2.fromOffset(position.X, position.Y)}):Play()
+				TweenService:Create(dragObject.Parent, TweenInfo.new(0.05, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = UDim2.fromOffset(position.X, position.Y + ((useMobileSizing and tapticOffset[2]) or tapticOffset[1]))}):Play()
+			else
+				if dragBar and tapticOffset then
+					dragBar.Position = UDim2.fromOffset(position.X, position.Y + ((useMobileSizing and tapticOffset[2]) or tapticOffset[1]))
+				end
+				object.Position = UDim2.fromOffset(position.X, position.Y)
+			end
+		end
+	end)
+
+	object.Destroying:Connect(function()
+		if inputEnded then inputEnded:Disconnect() end
+		if renderStepped then renderStepped:Disconnect() end
+	end)
+end
+
+
+local function PackColor(Color)
+	return {R = Color.R * 255, G = Color.G * 255, B = Color.B * 255}
+end    
+
+local function UnpackColor(Color)
+	return Color3.fromRGB(Color.R, Color.G, Color.B)
+end
+
+local function LoadConfiguration(Configuration)
+	local success, Data = pcall(function() return HttpService:JSONDecode(Configuration) end)
+	local changed
+
+	if not success then warn('Luva had an issue decoding the configuration file, please try delete the file and reopen Luva.') return end
+
+	-- Iterate through current UI elements' flags
+	for FlagName, Flag in pairs(LuvaLibrary.Flags) do
+		local FlagValue = Data[FlagName]
+
+		if (typeof(FlagValue) == 'boolean' and FlagValue == false) or FlagValue then
+			task.spawn(function()
+				if Flag.Type == "ColorPicker" then
+					changed = true
+					Flag:Set(UnpackColor(FlagValue))
+				else
+					if (Flag.CurrentValue or Flag.CurrentKeybind or Flag.CurrentOption or Flag.Color) ~= FlagValue then 
+						changed = true
+						Flag:Set(FlagValue) 	
+					end
+				end
+			end)
+		else
+			warn("Luva | Unable to find '"..FlagName.. "' in the save file.")
+			print("The error above may not be an issue if new elements have been added or not been set values.")
+			--LuvaLibrary:Notify({Title = "Luva Flags", Content = "Luva was unable to find '"..FlagName.. "' in the save file. Check sirius.menu/discord for help.", Image = 3944688398})
+		end
+	end
+
+	return changed
+end
+
+local function SaveConfiguration()
+	if not CEnabled or not globalLoaded then return end
+
+	if debugX then
+		print('Saving')
+	end
+
+	local Data = {}
+	for i, v in pairs(LuvaLibrary.Flags) do
+		if v.Type == "ColorPicker" then
+			Data[i] = PackColor(v.Color)
+		else
+			if typeof(v.CurrentValue) == 'boolean' then
+				if v.CurrentValue == false then
+					Data[i] = false
+				else
+					Data[i] = v.CurrentValue or v.CurrentKeybind or v.CurrentOption or v.Color
+				end
+			else
+				Data[i] = v.CurrentValue or v.CurrentKeybind or v.CurrentOption or v.Color
+			end
+		end
+	end
+
+	if useStudio then
+		if script.Parent:FindFirstChild('configuration') then script.Parent.configuration:Destroy() end
+
+		local ScreenGui = Instance.new("ScreenGui")
+		ScreenGui.Parent = script.Parent
+		ScreenGui.Name = 'configuration'
+
+		local TextBox = Instance.new("TextBox")
+		TextBox.Parent = ScreenGui
+		TextBox.Size = UDim2.new(0, 800, 0, 50)
+		TextBox.AnchorPoint = Vector2.new(0.5, 0)
+		TextBox.Position = UDim2.new(0.5, 0, 0, 30)
+		TextBox.Text = HttpService:JSONEncode(Data)
+		TextBox.ClearTextOnFocus = false
+	end
+
+	if debugX then
+		warn(HttpService:JSONEncode(Data))
+	end
+
+
+	callSafely(writefile, ConfigurationFolder .. "/" .. CFileName .. ConfigurationExtension, tostring(HttpService:JSONEncode(Data)))
+end
+
+function LuvaLibrary:Notify(data) -- action e.g open messages
+	task.spawn(function()
+
+		-- Notification Object Creation
+		local newNotification = Notifications.Template:Clone()
+		newNotification.Name = data.Title or 'No Title Provided'
+		newNotification.Parent = Notifications
+		newNotification.LayoutOrder = #Notifications:GetChildren()
+		newNotification.Visible = false
+
+		-- Set Data
+		newNotification.Title.Text = data.Title or "Unknown Title"
+		newNotification.Description.Text = data.Content or "Unknown Content"
+
+		if data.Image then
+			local img, rectOffset, rectSize = resolveIcon(data.Image)
+			newNotification.Icon.Image = img
+			if rectOffset then newNotification.Icon.ImageRectOffset = rectOffset end
+			if rectSize then newNotification.Icon.ImageRectSize = rectSize end
+		else
+			newNotification.Icon.Image = ""
+		end
+
+		-- Set initial transparency values
+
+		newNotification.Title.TextColor3 = SelectedTheme.TextColor
+		newNotification.Description.TextColor3 = SelectedTheme.TextColor
+		newNotification.BackgroundColor3 = SelectedTheme.Background
+		newNotification.UIStroke.Color = SelectedTheme.TextColor
+		newNotification.Icon.ImageColor3 = SelectedTheme.TextColor
+
+		newNotification.BackgroundTransparency = 1
+		newNotification.Title.TextTransparency = 1
+		newNotification.Description.TextTransparency = 1
+		newNotification.UIStroke.Transparency = 1
+		newNotification.Shadow.ImageTransparency = 1
+		newNotification.Size = UDim2.new(1, 0, 0, 800)
+		newNotification.Icon.ImageTransparency = 1
+		newNotification.Icon.BackgroundTransparency = 1
+
+		task.wait()
+
+		newNotification.Visible = true
+
+		if data.Actions then
+			warn('Luva | Not seeing your actions in notifications?')
+			print("Notification Actions are being sunset for now, keep up to date on when they're back in the discord. (sirius.menu/discord)")
+		end
+
+		-- Calculate textbounds and set initial values
+		local bounds = {newNotification.Title.TextBounds.Y, newNotification.Description.TextBounds.Y}
+		newNotification.Size = UDim2.new(1, -60, 0, -Notifications:FindFirstChild("UIListLayout").Padding.Offset)
+
+		newNotification.Icon.Size = UDim2.new(0, 32, 0, 32)
+		newNotification.Icon.Position = UDim2.new(0, 20, 0.5, 0)
+
+		TweenService:Create(newNotification, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, 0, 0, math.max(bounds[1] + bounds[2] + 31, 60))}):Play()
+
+		task.wait(0.15)
+		TweenService:Create(newNotification, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.45}):Play()
+		TweenService:Create(newNotification.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+		task.wait(0.05)
+
+		TweenService:Create(newNotification.Icon, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+
+		task.wait(0.05)
+		TweenService:Create(newNotification.Description, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.35}):Play()
+		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 0.95}):Play()
+		TweenService:Create(newNotification.Shadow, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.82}):Play()
+
+		local waitDuration = math.min(math.max((#newNotification.Description.Text * 0.1) + 2.5, 3), 10)
+		task.wait(data.Duration or waitDuration)
+
+		newNotification.Icon.Visible = false
+		TweenService:Create(newNotification, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+		TweenService:Create(newNotification.Shadow, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+		TweenService:Create(newNotification.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+		TweenService:Create(newNotification.Description, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+
+		TweenService:Create(newNotification, TweenInfo.new(1, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -90, 0, 0)}):Play()
+
+		task.wait(1)
+
+		TweenService:Create(newNotification, TweenInfo.new(1, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -90, 0, -Notifications:FindFirstChild("UIListLayout").Padding.Offset)}):Play()
+
+		newNotification.Visible = false
+		newNotification:Destroy()
+	end)
+end
+
+local function openSearch()
+	searchOpen = true
+
+	Main.Search.BackgroundTransparency = 1
+	Main.Search.Shadow.ImageTransparency = 1
+	Main.Search.Input.TextTransparency = 1
+	Main.Search.Search.ImageTransparency = 1
+	Main.Search.UIStroke.Transparency = 1
+	Main.Search.Size = UDim2.new(1, 0, 0, 80)
+	Main.Search.Position = UDim2.new(0.5, 0, 0, 70)
+
+	Main.Search.Input.Interactable = true
+
+	Main.Search.Visible = true
+
+	for _, tabbtn in ipairs(TabList:GetChildren()) do
+		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
+			tabbtn.Interact.Visible = false
+			TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+			TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+			TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+			TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+		end
+	end
+
+	Main.Search.Input:CaptureFocus()
+	TweenService:Create(Main.Search.Shadow, TweenInfo.new(0.05, Enum.EasingStyle.Quint), {ImageTransparency = 0.95}):Play()
+	TweenService:Create(Main.Search, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.5, 0, 0, 57), BackgroundTransparency = 0.9}):Play()
+	TweenService:Create(Main.Search.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0.8}):Play()
+	TweenService:Create(Main.Search.Input, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
+	TweenService:Create(Main.Search.Search, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.5}):Play()
+	TweenService:Create(Main.Search, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -35, 0, 35)}):Play()
+end
+
+local function closeSearch()
+	searchOpen = false
+
+	TweenService:Create(Main.Search, TweenInfo.new(0.35, Enum.EasingStyle.Quint), {BackgroundTransparency = 1, Size = UDim2.new(1, -55, 0, 30)}):Play()
+	TweenService:Create(Main.Search.Search, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {ImageTransparency = 1}):Play()
+	TweenService:Create(Main.Search.Shadow, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {ImageTransparency = 1}):Play()
+	TweenService:Create(Main.Search.UIStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {Transparency = 1}):Play()
+	TweenService:Create(Main.Search.Input, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {TextTransparency = 1}):Play()
+
+	for _, tabbtn in ipairs(TabList:GetChildren()) do
+		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
+			tabbtn.Interact.Visible = true
+			if tostring(Elements.UIPageLayout.CurrentPage) == tabbtn.Title.Text then
+				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+			else
+				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
+				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
+				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
+				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+			end
+		end
+	end
+
+	Main.Search.Input.Text = ''
+	Main.Search.Input.Interactable = false
+end
+
+-- Sets element visibility across all tab pages (used by Hide, Unhide, Maximise, Minimise)
+local function setElementsVisible(show)
+	for _, tab in ipairs(Elements:GetChildren()) do
+		if tab.Name ~= "Template" and tab.ClassName == "ScrollingFrame" and tab.Name ~= "Placeholder" then
+			for _, element in ipairs(tab:GetChildren()) do
+				if element.ClassName == "Frame" then
+					if element.Name ~= "SectionSpacing" and element.Name ~= "Placeholder" then
+						if element.Name == "SectionTitle" or element.Name == 'SearchTitle-fsefsefesfsefesfesfThanks' then
+							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = show and 0.4 or 1}):Play()
+						elseif element.Name == 'Divider' then
+							TweenService:Create(element.Divider, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = show and 0.85 or 1}):Play()
+						else
+							local bgTarget = element:GetAttribute("BackgroundTransparencyTarget") or 0
+							local strokeTarget = element:GetAttribute("UIStrokeTransparencyTarget") or 0
+							local titleTarget = element:GetAttribute("TitleTextTransparencyTarget") or 0
+							TweenService:Create(element, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = show and bgTarget or 1}):Play()
+							TweenService:Create(element.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = show and strokeTarget or 1}):Play()
+							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = show and titleTarget or 1}):Play()
+						end
+						for _, child in ipairs(element:GetChildren()) do
+							if child.ClassName == "Frame" or child.ClassName == "TextLabel" or child.ClassName == "TextBox" or child.ClassName == "ImageButton" or child.ClassName == "ImageLabel" then
+								child.Visible = show
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+-- Sets tab button visibility (used by Hide, Unhide, Maximise, Minimise)
+local function setTabButtonsVisible(show)
+	for _, tabbtn in ipairs(TabList:GetChildren()) do
+		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
+			if show then
+				if tostring(Elements.UIPageLayout.CurrentPage) == tabbtn.Title.Text then
+					TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+					TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+					TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+					TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+				else
+					TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
+					TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
+					TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
+					TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+				end
+			else
+				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+			end
+		end
+	end
+end
+
+local function Hide(notify: boolean?)
+	if MPrompt then
+		MPrompt.Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+		MPrompt.Position = UDim2.new(0.5, 0, 0, -50)
+		MPrompt.Size = UDim2.new(0, 40, 0, 10)
+		MPrompt.BackgroundTransparency = 1
+		MPrompt.Title.TextTransparency = 1
+		MPrompt.Visible = true
+	end
+
+	task.spawn(closeSearch)
+
+	Debounce = true
+	if notify then
+		if useMobilePrompt then 
+			LuvaLibrary:Notify({Title = "Interface Hidden", Content = "The interface has been hidden, you can unhide the interface by tapping 'Show'.", Duration = 7, Image = 4400697855})
+		else
+			LuvaLibrary:Notify({Title = "Interface Hidden", Content = "The interface has been hidden, you can unhide the interface by tapping " .. tostring(getSetting("General", "luvaOpen")) .. ".", Duration = 7, Image = 4400697855})
+		end
+	end
+
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 0)}):Play()
+	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 45)}):Play()
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+	TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+	if dragBarCosmetic then
+		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+	end
+
+	if useMobilePrompt and MPrompt then
+		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 0.3}):Play()
+		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0.3}):Play()
+	end
+
+	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
+		if TopbarButton.ClassName == "ImageButton" then
+			TweenService:Create(TopbarButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+		end
+	end
+
+	setTabButtonsVisible(false)
+
+	if dragInteract then dragInteract.Visible = false end
+
+	setElementsVisible(false)
+
+	task.wait(0.5)
+	Main.Visible = false
+	Debounce = false
+end
+
+local function Maximise()
+	Debounce = true
+	Topbar.ChangeSize.Image = customAssets[tostring(10137941941)]
+
+	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.6}):Play()
+	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.7}):Play()
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475)}):Play()
+	TweenService:Create(Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 45)}):Play()
+	TabList.Visible = true
+	task.wait(0.2)
+
+	Elements.Visible = true
+
+	setElementsVisible(true)
+
+	task.wait(0.1)
+
+	setTabButtonsVisible(true)
+
+	task.wait(0.5)
+	Debounce = false
+end
+
+
+local function Unhide()
+	Debounce = true
+	Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+	Main.Visible = true
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475)}):Play()
+	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 45)}):Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.6}):Play()
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+	if MPrompt then
+		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 40, 0, 10), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 1}):Play()
+		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+
+		task.spawn(function()
+			task.wait(0.5)
+			MPrompt.Visible = false
+		end)
+	end
+
+	if Minimised then
+		task.spawn(Maximise)
+	end
+
+	dragBar.Position = useMobileSizing and UDim2.new(0.5, 0, 0.5, dragOffsetMobile) or UDim2.new(0.5, 0, 0.5, dragOffset)
+
+	dragInteract.Visible = true
+
+	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
+		if TopbarButton.ClassName == "ImageButton" then
+			if TopbarButton.Name == 'Icon' then
+				TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+			else
+				TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+			end
+
+		end
+	end
+
+	setTabButtonsVisible(true)
+
+	setElementsVisible(true)
+
+	TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.5}):Play()
+
+	task.wait(0.5)
+	Minimised = false
+	Debounce = false
+end
+
+local function Minimise()
+	Debounce = true
+	Topbar.ChangeSize.Image = customAssets[tostring(11036884234)]
+
+	Topbar.UIStroke.Color = SelectedTheme.ElementStroke
+
+	task.spawn(closeSearch)
+
+	setTabButtonsVisible(false)
+
+	setElementsVisible(false)
+
+	TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+	TweenService:Create(Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 495, 0, 45)}):Play()
+	TweenService:Create(Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 495, 0, 45)}):Play()
+
+	task.wait(0.3)
+
+	Elements.Visible = false
+	TabList.Visible = false
+
+	task.wait(0.2)
+	Debounce = false
+end
+
+local function saveSettings() -- Save settings to config file
+	local encoded
+	local success, err = pcall(function()
+		encoded = HttpService:JSONEncode(settingsTable)
+	end)
+
+	if success then
+		if useStudio then
+			if script.Parent['get.val'] then
+				script.Parent['get.val'].Value = encoded
+			end
+		end
+		callSafely(writefile, LuvaFolder..'/settings'..ConfigurationExtension, encoded)
+	end
+end
+
+local function updateSetting(category: string, setting: string, value: any)
+	if not settingsInitialized then
+		return
+	end
+	settingsTable[category][setting].Value = value
+	overriddenSettings[category .. "." .. setting] = nil -- If user changes an overriden setting, remove the override
+	saveSettings()
+end
+
+local function createSettings(window)
+	if not (writefile and isfile and readfile and isfolder and makefolder) and not useStudio then
+		if Topbar['Settings'] then Topbar.Settings.Visible = false end
+		Topbar['Search'].Position = UDim2.new(1, -75, 0.5, 0)
+		warn('Can\'t create settings as no file-saving functionality is available.')
+		return
+	end
+
+	local newTab = window:CreateTab('Luva Settings', 0, true)
+
+	if TabList['Luva Settings'] then
+		TabList['Luva Settings'].LayoutOrder = 1000
+	end
+
+	if Elements['Luva Settings'] then
+		Elements['Luva Settings'].LayoutOrder = 1000
+	end
+
+	-- Create sections and elements
+	for categoryName, settingCategory in pairs(settingsTable) do
+		newTab:CreateSection(categoryName)
+
+		for settingName, setting in pairs(settingCategory) do
+			if setting.Type == 'input' then
+				setting.Element = newTab:CreateInput({
+					Name = setting.Name,
+					CurrentValue = setting.Value,
+					PlaceholderText = setting.Placeholder,
+					Ext = true,
+					RemoveTextAfterFocusLost = setting.ClearOnFocus,
+					Callback = function(Value)
+						updateSetting(categoryName, settingName, Value)
+					end,
+				})
+			elseif setting.Type == 'toggle' then
+				setting.Element = newTab:CreateToggle({
+					Name = setting.Name,
+					CurrentValue = setting.Value,
+					Ext = true,
+					Callback = function(Value)
+						updateSetting(categoryName, settingName, Value)
+					end,
+				})
+			elseif setting.Type == 'bind' then
+				setting.Element = newTab:CreateKeybind({
+					Name = setting.Name,
+					CurrentKeybind = setting.Value,
+					HoldToInteract = false,
+					Ext = true,
+					CallOnChange = true,
+					Callback = function(Value)
+						updateSetting(categoryName, settingName, Value)
+					end,
+				})
+			end
+		end
+	end
+
+	settingsCreated = true
+	loadSettings()
+	saveSettings()
+end
+
+local function fadeOutKeyUI(KeyMain)
+	TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+	TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 467, 0, 175)}):Play()
+	TweenService:Create(KeyMain.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+	TweenService:Create(KeyMain.Title, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+	TweenService:Create(KeyMain.Subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+	TweenService:Create(KeyMain.KeyNote, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+	TweenService:Create(KeyMain.Input, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+	TweenService:Create(KeyMain.Input.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+	TweenService:Create(KeyMain.Input.InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+	TweenService:Create(KeyMain.NoteTitle, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+	TweenService:Create(KeyMain.NoteMessage, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+	TweenService:Create(KeyMain.Hide, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+end
+
+function LuvaLibrary:CreateWindow(Settings)
+	if Luva:FindFirstChild('Loading') then
+		if getgenv and not getgenv().luvaCached then
+			Luva.Enabled = true
+			Luva.Loading.Visible = true
+
+			task.wait(1.4)
+			Luva.Loading.Visible = false
+		end
+	end
+
+	if getgenv then getgenv().luvaCached = true end
+
+	if not correctBuild and not Settings.DisableBuildWarnings then
+		task.delay(3, 
+			function() 
+				LuvaLibrary:Notify({Title = 'Build Mismatch', Content = 'Luva may encounter issues as you are running an incompatible interface version ('.. ((Luva:FindFirstChild('Build') and Luva.Build.Value) or 'No Build') ..').\n\nThis version of Luva is intended for interface build '..InterfaceBuild..'.\n\nTry rejoining and then run the script twice.', Image = 4335487866, Duration = 15})		
+			end)
+	end
+
+	if Settings.ToggleUIKeybind then -- Can either be a string or an Enum.KeyCode
+		local keybind = Settings.ToggleUIKeybind
+		if type(keybind) == "string" then
+			keybind = string.upper(keybind)
+			assert(pcall(function()
+				return Enum.KeyCode[keybind]
+			end), "ToggleUIKeybind must be a valid KeyCode")
+			overrideSetting("General", "luvaOpen", keybind)
+		elseif typeof(keybind) == "EnumItem" then
+			assert(keybind.EnumType == Enum.KeyCode, "ToggleUIKeybind must be a KeyCode enum")
+			overrideSetting("General", "luvaOpen", keybind.Name)
+		else
+			error("ToggleUIKeybind must be a string or KeyCode enum")
+		end
+	end
+
+	ensureFolder(LuvaFolder)
+
+	local Passthrough = false
+	Topbar.Title.Text = Settings.Name
+
+	Main.Size = UDim2.new(0, 420, 0, 100)
+	Main.Visible = true
+	Main.BackgroundTransparency = 1
+	if Main:FindFirstChild('Notice') then Main.Notice.Visible = false end
+	Main.Shadow.Image.ImageTransparency = 1
+
+	LoadingFrame.Title.TextTransparency = 1
+	LoadingFrame.Subtitle.TextTransparency = 1
+
+	if Settings.ShowText then
+		MPrompt.Title.Text = 'Show '..Settings.ShowText
+	end
+
+	LoadingFrame.Version.TextTransparency = 1
+	LoadingFrame.Title.Text = Settings.LoadingTitle or "Luva"
+	LoadingFrame.Subtitle.Text = Settings.LoadingSubtitle or "Interface Suite"
+
+	if Settings.LoadingTitle ~= "Luva Interface Suite" then
+		LoadingFrame.Version.Text = "Luva UI"
+	end
+
+	if Settings.Icon and Settings.Icon ~= 0 and Topbar:FindFirstChild('Icon') then
+		Topbar.Icon.Visible = true
+		Topbar.Title.Position = UDim2.new(0, 47, 0.5, 0)
+
+		if Settings.Icon then
+			local img, rectOffset, rectSize = resolveIcon(Settings.Icon)
+			Topbar.Icon.Image = img
+			if rectOffset then Topbar.Icon.ImageRectOffset = rectOffset end
+			if rectSize then Topbar.Icon.ImageRectSize = rectSize end
+		else
+			Topbar.Icon.Image = ""
+		end
+	end
+
+	if dragBar then
+		dragBar.Visible = false
+		dragBarCosmetic.BackgroundTransparency = 1
+		dragBar.Visible = true
+	end
+
+	if Settings.Theme then
+		local success, result = pcall(ChangeTheme, Settings.Theme)
+		if not success then
+			local success, result2 = pcall(ChangeTheme, 'Default')
+			if not success then
+				warn('CRITICAL ERROR - NO DEFAULT THEME')
+				print(result2)
+			end
+			warn('issue rendering theme. no theme on file')
+			print(result)
+		end
+	end
+
+	Topbar.Visible = false
+	Elements.Visible = false
+	LoadingFrame.Visible = true
+
+	if not Settings.DisableLuvaPrompts then
+		task.spawn(function()
+			while not luvaDestroyed do
+				task.wait(math.random(180, 600))
+				if luvaDestroyed then break end
+				LuvaLibrary:Notify({
+					Title = "Luva Interface",
+					Content = "Enjoying this UI library? Find it at sirius.menu/discord",
+					Duration = 7,
+					Image = 4370033185,
+				})
+			end
+		end)
+	end
+
+	pcall(function()
+		if not Settings.ConfigurationSaving.FileName then
+			Settings.ConfigurationSaving.FileName = tostring(game.PlaceId)
+		end
+
+		if Settings.ConfigurationSaving.Enabled == nil then
+			Settings.ConfigurationSaving.Enabled = false
+		end
+
+		CFileName = Settings.ConfigurationSaving.FileName
+		ConfigurationFolder = Settings.ConfigurationSaving.FolderName or ConfigurationFolder
+		CEnabled = Settings.ConfigurationSaving.Enabled
+
+		if Settings.ConfigurationSaving.Enabled then
+			ensureFolder(ConfigurationFolder)
+		end
+	end)
+
+
+	makeDraggable(Main, Topbar, false, {dragOffset, dragOffsetMobile})
+	if dragBar then dragBar.Position = useMobileSizing and UDim2.new(0.5, 0, 0.5, dragOffsetMobile) or UDim2.new(0.5, 0, 0.5, dragOffset) makeDraggable(Main, dragInteract, true, {dragOffset, dragOffsetMobile}) end
+
+	for _, TabButton in ipairs(TabList:GetChildren()) do
+		if TabButton.ClassName == "Frame" and TabButton.Name ~= "Placeholder" then
+			TabButton.BackgroundTransparency = 1
+			TabButton.Title.TextTransparency = 1
+			TabButton.Image.ImageTransparency = 1
+			TabButton.UIStroke.Transparency = 1
+		end
+	end
+
+	if Settings.Discord and Settings.Discord.Enabled and not useStudio and not secureMode then
+		ensureFolder(LuvaFolder.."/Discord Invites")
+
+		if not callSafely(isfile, LuvaFolder.."/Discord Invites".."/"..Settings.Discord.Invite..ConfigurationExtension) then
+			if requestFunc then
+				pcall(function()
+					requestFunc({
+						Url = 'http://127.0.0.1:6463/rpc?v=1',
+						Method = 'POST',
+						Headers = {
+							['Content-Type'] = 'application/json',
+							Origin = 'https://discord.com'
+						},
+						Body = HttpService:JSONEncode({
+							cmd = 'INVITE_BROWSER',
+							nonce = HttpService:GenerateGUID(false),
+							args = {code = Settings.Discord.Invite}
+						})
+					})
+				end)
+			end
+
+			if Settings.Discord.RememberJoins then -- We do logic this way so if the developer changes this setting, the user still won't be prompted, only new users
+				callSafely(writefile, LuvaFolder.."/Discord Invites".."/"..Settings.Discord.Invite..ConfigurationExtension,"Luva RememberJoins is true for this invite, this invite will not ask you to join again")
+			end
+		end
+	end
+
+	if (Settings.KeySystem) then
+		if not Settings.KeySettings then
+			Passthrough = true
+			return
+		end
+
+		ensureFolder(LuvaFolder.."/Key System")
+
+		if typeof(Settings.KeySettings.Key) == "string" then Settings.KeySettings.Key = {Settings.KeySettings.Key} end
+
+		if Settings.KeySettings.GrabKeyFromSite then
+			for i, Key in ipairs(Settings.KeySettings.Key) do
+				local Success, Response = pcall(function()
+					Settings.KeySettings.Key[i] = tostring(game:HttpGet(Key):gsub("[\n\r]", " "))
+					Settings.KeySettings.Key[i] = string.gsub(Settings.KeySettings.Key[i], " ", "")
+				end)
+				if not Success then
+					print("Luva | "..Key.." Error " ..tostring(Response))
+					warn('Check docs.sirius.menu for help with Luva specific development.')
+				end
+			end
+		end
+
+		if not Settings.KeySettings.FileName then
+			Settings.KeySettings.FileName = "No file name specified"
+		end
+
+		if callSafely(isfile, LuvaFolder.."/Key System".."/"..Settings.KeySettings.FileName..ConfigurationExtension) then
+			for _, MKey in ipairs(Settings.KeySettings.Key) do
+				local savedKeys = callSafely(readfile, LuvaFolder.."/Key System".."/"..Settings.KeySettings.FileName..ConfigurationExtension)
+				if savedKeys and string.find(savedKeys, MKey) then
+					Passthrough = true
+				end
+			end
+		end
+
+		if not Passthrough and secureMode then
+			warn("Luva | Secure Mode: Key system requires a valid saved key. The key UI cannot be shown as it requires loading detectable assets.")
+			Luva.Enabled = false
+			return LuvaLibrary
+		end
+
+		if not Passthrough then
+			local AttemptsRemaining = Settings.KeySettings.MaxAttempts or 5
+			Luva.Enabled = false
+			local KeyUI = useStudio and script.Parent:FindFirstChild('Key') or game:GetObjects("rbxassetid://11380036235")[1]
+
+			KeyUI.Enabled = true
+
+			if gethui then
+				KeyUI.Parent = gethui()
+			elseif syn and syn.protect_gui then 
+				syn.protect_gui(KeyUI)
+				KeyUI.Parent = CoreGui
+			elseif not useStudio and CoreGui:FindFirstChild("RobloxGui") then
+				KeyUI.Parent = CoreGui:FindFirstChild("RobloxGui")
+			elseif not useStudio then
+				KeyUI.Parent = CoreGui
+			end
+
+			if gethui then
+				for _, Interface in ipairs(gethui():GetChildren()) do
+					if Interface.Name == KeyUI.Name and Interface ~= KeyUI then
+						Interface.Enabled = false
+						Interface.Name = "KeyUI-Old"
+					end
+				end
+			elseif not useStudio then
+				for _, Interface in ipairs(CoreGui:GetChildren()) do
+					if Interface.Name == KeyUI.Name and Interface ~= KeyUI then
+						Interface.Enabled = false
+						Interface.Name = "KeyUI-Old"
+					end
+				end
+			end
+
+			local KeyMain = KeyUI.Main
+			KeyMain.Title.Text = Settings.KeySettings.Title or Settings.Name
+			KeyMain.Subtitle.Text = Settings.KeySettings.Subtitle or "Key System"
+			KeyMain.NoteMessage.Text = Settings.KeySettings.Note or "No instructions"
+
+			KeyMain.Size = UDim2.new(0, 467, 0, 175)
+			KeyMain.BackgroundTransparency = 1
+			KeyMain.Shadow.Image.ImageTransparency = 1
+			KeyMain.Title.TextTransparency = 1
+			KeyMain.Subtitle.TextTransparency = 1
+			KeyMain.KeyNote.TextTransparency = 1
+			KeyMain.Input.BackgroundTransparency = 1
+			KeyMain.Input.UIStroke.Transparency = 1
+			KeyMain.Input.InputBox.TextTransparency = 1
+			KeyMain.NoteTitle.TextTransparency = 1
+			KeyMain.NoteMessage.TextTransparency = 1
+			KeyMain.Hide.ImageTransparency = 1
+
+			TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 187)}):Play()
+			TweenService:Create(KeyMain.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.5}):Play()
+			task.wait(0.05)
+			TweenService:Create(KeyMain.Title, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			TweenService:Create(KeyMain.Subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			task.wait(0.05)
+			TweenService:Create(KeyMain.KeyNote, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			TweenService:Create(KeyMain.Input, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(KeyMain.Input.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+			TweenService:Create(KeyMain.Input.InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			task.wait(0.05)
+			TweenService:Create(KeyMain.NoteTitle, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			TweenService:Create(KeyMain.NoteMessage, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			task.wait(0.15)
+			TweenService:Create(KeyMain.Hide, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {ImageTransparency = 0.3}):Play()
+
+
+			KeyUI.Main.Input.InputBox.FocusLost:Connect(function()
+				if #KeyUI.Main.Input.InputBox.Text == 0 then return end
+				local KeyFound = false
+				local FoundKey = ''
+				for _, MKey in ipairs(Settings.KeySettings.Key) do
+					--if string.find(KeyMain.Input.InputBox.Text, MKey) then
+					--	KeyFound = true
+					--	FoundKey = MKey
+					--end
+
+
+					-- stricter key check
+					if KeyMain.Input.InputBox.Text == MKey then
+						KeyFound = true
+						FoundKey = MKey
+					end
+				end
+				if KeyFound then
+					fadeOutKeyUI(KeyMain)
+					task.wait(0.51)
+					Passthrough = true
+					KeyMain.Visible = false
+					if Settings.KeySettings.SaveKey then
+						callSafely(writefile, LuvaFolder.."/Key System".."/"..Settings.KeySettings.FileName..ConfigurationExtension, FoundKey)
+						LuvaLibrary:Notify({Title = "Key System", Content = "The key for this script has been saved successfully.", Image = 3605522284})
+					end
+				else
+					if AttemptsRemaining == 0 then
+						fadeOutKeyUI(KeyMain)
+						task.wait(0.45)
+						Players.LocalPlayer:Kick("No Attempts Remaining")
+						game:Shutdown()
+					end
+					KeyMain.Input.InputBox.Text = ""
+					AttemptsRemaining = AttemptsRemaining - 1
+					TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 467, 0, 175)}):Play()
+					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Elastic), {Position = UDim2.new(0.495,0,0.5,0)}):Play()
+					task.wait(0.1)
+					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Elastic), {Position = UDim2.new(0.505,0,0.5,0)}):Play()
+					task.wait(0.1)
+					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.5,0,0.5,0)}):Play()
+					TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 187)}):Play()
+				end
+			end)
+
+			KeyMain.Hide.MouseButton1Click:Connect(function()
+				fadeOutKeyUI(KeyMain)
+				task.wait(0.51)
+				Passthrough = true
+				LuvaLibrary:Destroy()
+				KeyUI:Destroy()
+			end)
+		else
+			Passthrough = true
+		end
+	end
+	if Settings.KeySystem then
+		repeat task.wait() until Passthrough
+		if luvaDestroyed then return end
+	end
+
+	Notifications.Template.Visible = false
+	Notifications.Visible = true
+	Luva.Enabled = true
+
+	task.wait(0.5)
+	TweenService:Create(Main, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.6}):Play()
+	task.wait(0.1)
+	TweenService:Create(LoadingFrame.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+	task.wait(0.05)
+	TweenService:Create(LoadingFrame.Subtitle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+	task.wait(0.05)
+	TweenService:Create(LoadingFrame.Version, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+
+	Elements.Template.LayoutOrder = 100000
+	Elements.Template.Visible = false
+
+	Elements.UIPageLayout.FillDirection = Enum.FillDirection.Horizontal
+	Elements.UIPageLayout.ScrollWheelInputEnabled = false
+	Elements.UIPageLayout.GamepadInputEnabled = false
+	Elements.UIPageLayout.TouchInputEnabled = false
+	TabList.Template.Visible = false
+
+	-- Tab
+	local FirstTab = false
+	local Window = {}
+	function Window:CreateTab(Name, Image, Ext)
+		local SDone = false
+		local TabButton = TabList.Template:Clone()
+		TabButton.Name = Name
+		TabButton.Title.Text = Name
+		TabButton.Parent = TabList
+		TabButton.Title.TextWrapped = false
+		TabButton.Size = UDim2.new(0, TabButton.Title.TextBounds.X + 30, 0, 30)
+
+		if Image and Image ~= 0 then
+			local img, rectOffset, rectSize = resolveIcon(Image)
+			TabButton.Image.Image = img
+			if rectOffset then TabButton.Image.ImageRectOffset = rectOffset end
+			if rectSize then TabButton.Image.ImageRectSize = rectSize end
+
+			TabButton.Title.AnchorPoint = Vector2.new(0, 0.5)
+			TabButton.Title.Position = UDim2.new(0, 37, 0.5, 0)
+			TabButton.Image.Visible = true
+			TabButton.Title.TextXAlignment = Enum.TextXAlignment.Left
+			TabButton.Size = UDim2.new(0, TabButton.Title.TextBounds.X + 52, 0, 30)
+		end
+
+
+
+		TabButton.BackgroundTransparency = 1
+		TabButton.Title.TextTransparency = 1
+		TabButton.Image.ImageTransparency = 1
+		TabButton.UIStroke.Transparency = 1
+
+		TabButton.Visible = not Ext or false
+
+		-- Create Elements Page
+		local TabPage = Elements.Template:Clone()
+		TabPage.Name = Name
+		TabPage.Visible = true
+
+		TabPage.LayoutOrder = Ext and 10000 or #Elements:GetChildren()
+
+		for _, TemplateElement in ipairs(TabPage:GetChildren()) do
+			if TemplateElement.ClassName == "Frame" and TemplateElement.Name ~= "Placeholder" then
+				TemplateElement:Destroy()
+			end
+		end
+
+		TabPage.Parent = Elements
+		if not FirstTab and not Ext then
+			Elements.UIPageLayout.Animated = false
+			Elements.UIPageLayout:JumpTo(TabPage)
+			Elements.UIPageLayout.Animated = true
+		end
+
+		TabButton.UIStroke.Color = SelectedTheme.TabStroke
+
+		if Elements.UIPageLayout.CurrentPage == TabPage then
+			TabButton.BackgroundColor3 = SelectedTheme.TabBackgroundSelected
+			TabButton.Image.ImageColor3 = SelectedTheme.SelectedTabTextColor
+			TabButton.Title.TextColor3 = SelectedTheme.SelectedTabTextColor
+		else
+			TabButton.BackgroundColor3 = SelectedTheme.TabBackground
+			TabButton.Image.ImageColor3 = SelectedTheme.TabTextColor
+			TabButton.Title.TextColor3 = SelectedTheme.TabTextColor
+		end
+
+
+		-- Animate
+		task.wait(0.1)
+		if FirstTab or Ext then
+			TabButton.BackgroundColor3 = SelectedTheme.TabBackground
+			TabButton.Image.ImageColor3 = SelectedTheme.TabTextColor
+			TabButton.Title.TextColor3 = SelectedTheme.TabTextColor
+			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
+			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
+			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
+			TweenService:Create(TabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+		elseif not Ext then
+			FirstTab = Name
+			TabButton.BackgroundColor3 = SelectedTheme.TabBackgroundSelected
+			TabButton.Image.ImageColor3 = SelectedTheme.SelectedTabTextColor
+			TabButton.Title.TextColor3 = SelectedTheme.SelectedTabTextColor
+			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+		end
+
+
+		TabButton.Interact.MouseButton1Click:Connect(function()
+			if Minimised then return end
+			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(TabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.TabBackgroundSelected}):Play()
+			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextColor3 = SelectedTheme.SelectedTabTextColor}):Play()
+			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageColor3 = SelectedTheme.SelectedTabTextColor}):Play()
+
+			for _, OtherTabButton in ipairs(TabList:GetChildren()) do
+				if OtherTabButton.Name ~= "Template" and OtherTabButton.ClassName == "Frame" and OtherTabButton ~= TabButton and OtherTabButton.Name ~= "Placeholder" then
+					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.TabBackground}):Play()
+					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextColor3 = SelectedTheme.TabTextColor}):Play()
+					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageColor3 = SelectedTheme.TabTextColor}):Play()
+					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
+					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
+					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
+					TweenService:Create(OtherTabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+				end
+			end
+
+			if Elements.UIPageLayout.CurrentPage ~= TabPage then
+				Elements.UIPageLayout:JumpTo(TabPage)
+			end
+		end)
+
+		local Tab = {}
+
+		-- Button
+		function Tab:CreateButton(ButtonSettings)
+			local ButtonValue = {}
+
+			local Button = Elements.Template.Button:Clone()
+			Button.Name = ButtonSettings.Name
+			Button.Title.Text = ButtonSettings.Name
+			Button.Visible = true
+			Button.Parent = TabPage
+
+			Button.BackgroundTransparency = 1
+			Button.UIStroke.Transparency = 1
+			Button.Title.TextTransparency = 1
+
+			TweenService:Create(Button, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(Button.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+			TweenService:Create(Button.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+
+
+			Button.Interact.MouseButton1Click:Connect(function()
+				local Success, Response = pcall(ButtonSettings.Callback)
+				-- Prevents animation from trying to play if the button's callback called LuvaLibrary:Destroy()
+				if luvaDestroyed then
+					return
+				end
+				if not Success then
+					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					Button.Title.Text = "Callback Error"
+					print("Luva | "..ButtonSettings.Name.." Callback Error " ..tostring(Response))
+					warn('Check docs.sirius.menu for help with Luva specific development.')
+					task.wait(0.5)
+					Button.Title.Text = ButtonSettings.Name
+					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.9}):Play()
+					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				else
+					if not ButtonSettings.Ext then
+						SaveConfiguration(ButtonSettings.Name..'\n')
+					end
+					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					task.wait(0.2)
+					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.9}):Play()
+					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				end
+			end)
+
+			Button.MouseEnter:Connect(function()
+				TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+				TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.7}):Play()
+			end)
+
+			Button.MouseLeave:Connect(function()
+				TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+				TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.9}):Play()
+			end)
+
+			function ButtonValue:Set(NewButton)
+				Button.Title.Text = NewButton
+				Button.Name = NewButton
+			end
+
+			return ButtonValue
+		end
+
+		-- ColorPicker
+		function Tab:CreateColorPicker(ColorPickerSettings) -- by Throit
+			ColorPickerSettings.Type = "ColorPicker"
+			local ColorPicker = Elements.Template.ColorPicker:Clone()
+			local Background = ColorPicker.CPBackground
+			local Display = Background.Display
+			local Main = Background.MainCP
+			local Slider = ColorPicker.ColorSlider
+			ColorPicker.ClipsDescendants = true
+			ColorPicker.Name = ColorPickerSettings.Name
+			ColorPicker.Title.Text = ColorPickerSettings.Name
+			ColorPicker.Visible = true
+			ColorPicker.Parent = TabPage
+			ColorPicker.Size = UDim2.new(1, -10, 0, 45)
+			Background.Size = UDim2.new(0, 39, 0, 22)
+			Display.BackgroundTransparency = 0
+			Main.MainPoint.ImageTransparency = 1
+			ColorPicker.Interact.Size = UDim2.new(1, 0, 1, 0)
+			ColorPicker.Interact.Position = UDim2.new(0.5, 0, 0.5, 0)
+			ColorPicker.RGB.Position = UDim2.new(0, 17, 0, 70)
+			ColorPicker.HexInput.Position = UDim2.new(0, 17, 0, 90)
+			Main.ImageTransparency = 1
+			Background.BackgroundTransparency = 1
+
+			for _, rgbinput in ipairs(ColorPicker.RGB:GetChildren()) do
+				if rgbinput:IsA("Frame") then
+					rgbinput.BackgroundColor3 = SelectedTheme.InputBackground
+					rgbinput.UIStroke.Color = SelectedTheme.InputStroke
+				end
+			end
+
+			ColorPicker.HexInput.BackgroundColor3 = SelectedTheme.InputBackground
+			ColorPicker.HexInput.UIStroke.Color = SelectedTheme.InputStroke
+
+			local opened = false 
+			local mouse = Players.LocalPlayer:GetMouse()
+			local mainDragging = false 
+			local sliderDragging = false 
+			ColorPicker.Interact.MouseButton1Down:Connect(function()
+				task.spawn(function()
+					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+					TweenService:Create(ColorPicker.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					task.wait(0.2)
+					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(ColorPicker.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				end)
+
+				if not opened then
+					opened = true 
+					TweenService:Create(Background, TweenInfo.new(0.45, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 18, 0, 15)}):Play()
+					task.wait(0.1)
+					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 120)}):Play()
+					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 173, 0, 86)}):Play()
+					TweenService:Create(Display, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.289, 0, 0.5, 0)}):Play()
+					TweenService:Create(ColorPicker.RGB, TweenInfo.new(0.8, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 40)}):Play()
+					TweenService:Create(ColorPicker.HexInput, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 73)}):Play()
+					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0.574, 0, 1, 0)}):Play()
+					TweenService:Create(Main.MainPoint, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+					TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = SelectedTheme ~= LuvaLibrary.Theme.Default and 0.25 or 0.1}):Play()
+					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+				else
+					opened = false
+					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 45)}):Play()
+					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 39, 0, 22)}):Play()
+					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, 0, 1, 0)}):Play()
+					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
+					TweenService:Create(ColorPicker.RGB, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 70)}):Play()
+					TweenService:Create(ColorPicker.HexInput, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 90)}):Play()
+					TweenService:Create(Display, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+					TweenService:Create(Main.MainPoint, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+					TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+				end
+
+			end)
+
+			local colorPickerInputConnection = UserInputService.InputEnded:Connect(function(input, gameProcessed) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					mainDragging = false
+					sliderDragging = false
+				end end)
+			Main.MouseButton1Down:Connect(function()
+				if opened then
+					mainDragging = true 
+				end
+			end)
+			Main.MainPoint.MouseButton1Down:Connect(function()
+				if opened then
+					mainDragging = true 
+				end
+			end)
+			Slider.MouseButton1Down:Connect(function()
+				sliderDragging = true 
+			end)
+			Slider.SliderPoint.MouseButton1Down:Connect(function()
+				sliderDragging = true 
+			end)
+			local h,s,v = ColorPickerSettings.Color:ToHSV()
+			local color = Color3.fromHSV(h,s,v) 
+			local hex = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
+			ColorPicker.HexInput.InputBox.Text = hex
+			local function setDisplay()
+				--Main
+				Main.MainPoint.Position = UDim2.new(s,-Main.MainPoint.AbsoluteSize.X/2,1-v,-Main.MainPoint.AbsoluteSize.Y/2)
+				Main.MainPoint.ImageColor3 = Color3.fromHSV(h,s,v)
+				Background.BackgroundColor3 = Color3.fromHSV(h,1,1)
+				Display.BackgroundColor3 = Color3.fromHSV(h,s,v)
+				--Slider 
+				local x = h * Slider.AbsoluteSize.X
+				Slider.SliderPoint.Position = UDim2.new(0,x-Slider.SliderPoint.AbsoluteSize.X/2,0.5,0)
+				Slider.SliderPoint.ImageColor3 = Color3.fromHSV(h,1,1)
+				local color = Color3.fromHSV(h,s,v) 
+				local r,g,b = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
+				ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
+				ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
+				ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
+				hex = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
+				ColorPicker.HexInput.InputBox.Text = hex
+			end
+			setDisplay()
+			ColorPicker.HexInput.InputBox.FocusLost:Connect(function()
+				if not pcall(function()
+						local r, g, b = string.match(ColorPicker.HexInput.InputBox.Text, "^#?(%w%w)(%w%w)(%w%w)$")
+						local rgbColor = Color3.fromRGB(tonumber(r, 16),tonumber(g, 16), tonumber(b, 16))
+						h,s,v = rgbColor:ToHSV()
+						hex = ColorPicker.HexInput.InputBox.Text
+						setDisplay()
+						ColorPickerSettings.Color = rgbColor
+					end) 
+				then 
+					ColorPicker.HexInput.InputBox.Text = hex 
+				end
+				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
+				local r,g,b = math.floor((h*255)+0.5),math.floor((s*255)+0.5),math.floor((v*255)+0.5)
+				ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
+				if not ColorPickerSettings.Ext then
+					SaveConfiguration()
+				end
+			end)
+			--RGB
+			local function rgbBoxes(box,toChange)
+				local value = tonumber(box.Text) 
+				local color = Color3.fromHSV(h,s,v) 
+				local oldR,oldG,oldB = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
+				local save 
+				if toChange == "R" then save = oldR;oldR = value elseif toChange == "G" then save = oldG;oldG = value else save = oldB;oldB = value end
+				if value then 
+					value = math.clamp(value,0,255)
+					h,s,v = Color3.fromRGB(oldR,oldG,oldB):ToHSV()
+
+					setDisplay()
+				else 
+					box.Text = tostring(save)
+				end
+				local r,g,b = math.floor((h*255)+0.5),math.floor((s*255)+0.5),math.floor((v*255)+0.5)
+				ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
+				if not ColorPickerSettings.Ext then
+					SaveConfiguration(ColorPickerSettings.Flag..'\n'..tostring(ColorPickerSettings.Color))
+				end
+			end
+			ColorPicker.RGB.RInput.InputBox.FocusLost:connect(function()
+				rgbBoxes(ColorPicker.RGB.RInput.InputBox,"R")
+				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
+			end)
+			ColorPicker.RGB.GInput.InputBox.FocusLost:connect(function()
+				rgbBoxes(ColorPicker.RGB.GInput.InputBox,"G")
+				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
+			end)
+			ColorPicker.RGB.BInput.InputBox.FocusLost:connect(function()
+				rgbBoxes(ColorPicker.RGB.BInput.InputBox,"B")
+				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
+			end)
+
+			local colorPickerRenderConnection = RunService.RenderStepped:connect(function()
+				if mainDragging then
+					local localX = math.clamp(mouse.X-Main.AbsolutePosition.X,0,Main.AbsoluteSize.X)
+					local localY = math.clamp(mouse.Y-Main.AbsolutePosition.Y,0,Main.AbsoluteSize.Y)
+					Main.MainPoint.Position = UDim2.new(0,localX-Main.MainPoint.AbsoluteSize.X/2,0,localY-Main.MainPoint.AbsoluteSize.Y/2)
+					s = localX / Main.AbsoluteSize.X
+					v = 1 - (localY / Main.AbsoluteSize.Y)
+					Display.BackgroundColor3 = Color3.fromHSV(h,s,v)
+					Main.MainPoint.ImageColor3 = Color3.fromHSV(h,s,v)
+					Background.BackgroundColor3 = Color3.fromHSV(h,1,1)
+					local color = Color3.fromHSV(h,s,v) 
+					local r,g,b = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
+					ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
+					ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
+					ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
+					ColorPicker.HexInput.InputBox.Text = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
+					pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
+					ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
+					if not ColorPickerSettings.Ext then
+						SaveConfiguration()
+					end
+				end
+				if sliderDragging then 
+					local localX = math.clamp(mouse.X-Slider.AbsolutePosition.X,0,Slider.AbsoluteSize.X)
+					h = localX / Slider.AbsoluteSize.X
+					Display.BackgroundColor3 = Color3.fromHSV(h,s,v)
+					Slider.SliderPoint.Position = UDim2.new(0,localX-Slider.SliderPoint.AbsoluteSize.X/2,0.5,0)
+					Slider.SliderPoint.ImageColor3 = Color3.fromHSV(h,1,1)
+					Background.BackgroundColor3 = Color3.fromHSV(h,1,1)
+					Main.MainPoint.ImageColor3 = Color3.fromHSV(h,s,v)
+					local color = Color3.fromHSV(h,s,v) 
+					local r,g,b = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
+					ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
+					ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
+					ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
+					ColorPicker.HexInput.InputBox.Text = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
+					pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
+					ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
+					if not ColorPickerSettings.Ext then
+						SaveConfiguration()
+					end
+				end
+			end)
+
+			ColorPicker.Destroying:Connect(function()
+				if colorPickerRenderConnection then
+					colorPickerRenderConnection:Disconnect()
+				end
+				if colorPickerInputConnection then
+					colorPickerInputConnection:Disconnect()
+				end
+			end)
+
+			if Settings.ConfigurationSaving then
+				if Settings.ConfigurationSaving.Enabled and ColorPickerSettings.Flag then
+					LuvaLibrary.Flags[ColorPickerSettings.Flag] = ColorPickerSettings
+				end
+			end
+
+			function ColorPickerSettings:Set(RGBColor)
+				ColorPickerSettings.Color = RGBColor
+				h,s,v = ColorPickerSettings.Color:ToHSV()
+				color = Color3.fromHSV(h,s,v)
+				setDisplay()
+			end
+
+			ColorPicker.MouseEnter:Connect(function()
+				TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+			end)
+
+			ColorPicker.MouseLeave:Connect(function()
+				TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+			end)
+
+			Luva.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
+				for _, rgbinput in ipairs(ColorPicker.RGB:GetChildren()) do
+					if rgbinput:IsA("Frame") then
+						rgbinput.BackgroundColor3 = SelectedTheme.InputBackground
+						rgbinput.UIStroke.Color = SelectedTheme.InputStroke
+					end
+				end
+
+				ColorPicker.HexInput.BackgroundColor3 = SelectedTheme.InputBackground
+				ColorPicker.HexInput.UIStroke.Color = SelectedTheme.InputStroke
+			end)
+
+			return ColorPickerSettings
+		end
+
+		-- Section
+		function Tab:CreateSection(SectionName)
+
+			local SectionValue = {}
+
+			if SDone then
+				local SectionSpace = Elements.Template.SectionSpacing:Clone()
+				SectionSpace.Visible = true
+				SectionSpace.Parent = TabPage
+			end
+
+			local Section = Elements.Template.SectionTitle:Clone()
+			Section.Title.Text = SectionName
+			Section.Visible = true
+			Section.Parent = TabPage
+
+			Section.Title.TextTransparency = 1
+			TweenService:Create(Section.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0.4}):Play()
+
+			function SectionValue:Set(NewSection)
+				Section.Title.Text = NewSection
+			end
+
+			SDone = true
+
+			return SectionValue
+		end
+
+		-- Divider
+		function Tab:CreateDivider()
+			local DividerValue = {}
+
+			local Divider = Elements.Template.Divider:Clone()
+			Divider.Visible = true
+			Divider.Parent = TabPage
+
+			Divider.Divider.BackgroundTransparency = 1
+			TweenService:Create(Divider.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.85}):Play()
+
+			function DividerValue:Set(Value)
+				Divider.Visible = Value
+			end
+
+			return DividerValue
+		end
+
+		-- Label
+		function Tab:CreateLabel(LabelText : string, Icon: number, Color : Color3, IgnoreTheme : boolean)
+			local LabelValue = {}
+
+			local Label = Elements.Template.Label:Clone()
+			Label.Title.Text = LabelText
+			Label.Visible = true
+			Label.Parent = TabPage
+
+			Label.BackgroundColor3 = Color or SelectedTheme.SecondaryElementBackground
+			Label.UIStroke.Color = Color or SelectedTheme.SecondaryElementStroke
+
+			if Icon then
+				local img, rectOffset, rectSize = resolveIcon(Icon)
+				Label.Icon.Image = img
+				if rectOffset then Label.Icon.ImageRectOffset = rectOffset end
+				if rectSize then Label.Icon.ImageRectSize = rectSize end
+			else
+				Label.Icon.Image = ""
+			end
+
+			if Icon and Label:FindFirstChild('Icon') then
+				Label.Title.Position = UDim2.new(0, 45, 0.5, 0)
+				Label.Title.Size = UDim2.new(1, -100, 0, 14)
+				Label.Icon.Visible = true
+			end
+
+			Label.Icon.ImageTransparency = 1
+			Label.BackgroundTransparency = 1
+			Label.UIStroke.Transparency = 1
+			Label.Title.TextTransparency = 1
+
+			Label:SetAttribute("BackgroundTransparencyTarget", Color and 0.8 or 0)
+			Label:SetAttribute("UIStrokeTransparencyTarget", Color and 0.7 or 0)
+			Label:SetAttribute("TitleTextTransparencyTarget", Color and 0.2 or 0)
+
+			TweenService:Create(Label, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = Color and 0.8 or 0}):Play()
+			TweenService:Create(Label.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = Color and 0.7 or 0}):Play()
+			TweenService:Create(Label.Icon, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
+			TweenService:Create(Label.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = Color and 0.2 or 0}):Play()
+
+			function LabelValue:Set(NewLabel, Icon, Color)
+				Label.Title.Text = NewLabel
+
+				if Color then
+					Label.BackgroundColor3 = Color or SelectedTheme.SecondaryElementBackground
+					Label.UIStroke.Color = Color or SelectedTheme.SecondaryElementStroke
+				end
+
+				if Icon and Label:FindFirstChild('Icon') then
+					Label.Title.Position = UDim2.new(0, 45, 0.5, 0)
+					Label.Title.Size = UDim2.new(1, -100, 0, 14)
+
+					local img, rectOffset, rectSize = resolveIcon(Icon)
+					Label.Icon.Image = img
+					if rectOffset then Label.Icon.ImageRectOffset = rectOffset end
+					if rectSize then Label.Icon.ImageRectSize = rectSize end
+
+					Label.Icon.Visible = true
+				end
+			end
+
+			Luva.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
+				Label.BackgroundColor3 = IgnoreTheme and (Color or Label.BackgroundColor3) or SelectedTheme.SecondaryElementBackground
+				Label.UIStroke.Color = IgnoreTheme and (Color or Label.BackgroundColor3) or SelectedTheme.SecondaryElementStroke
+			end)
+
+			return LabelValue
+		end
+
+		-- Paragraph
+		function Tab:CreateParagraph(ParagraphSettings)
+			local ParagraphValue = {}
+
+			local Paragraph = Elements.Template.Paragraph:Clone()
+			Paragraph.Title.Text = ParagraphSettings.Title
+			Paragraph.Content.Text = ParagraphSettings.Content
+			Paragraph.Visible = true
+			Paragraph.Parent = TabPage
+
+			Paragraph.BackgroundTransparency = 1
+			Paragraph.UIStroke.Transparency = 1
+			Paragraph.Title.TextTransparency = 1
+			Paragraph.Content.TextTransparency = 1
+
+			Paragraph.BackgroundColor3 = SelectedTheme.SecondaryElementBackground
+			Paragraph.UIStroke.Color = SelectedTheme.SecondaryElementStroke
+
+			TweenService:Create(Paragraph, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(Paragraph.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+			TweenService:Create(Paragraph.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+			TweenService:Create(Paragraph.Content, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+
+			function ParagraphValue:Set(NewParagraphSettings)
+				Paragraph.Title.Text = NewParagraphSettings.Title
+				Paragraph.Content.Text = NewParagraphSettings.Content
+			end
+
+			Luva.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
+				Paragraph.BackgroundColor3 = SelectedTheme.SecondaryElementBackground
+				Paragraph.UIStroke.Color = SelectedTheme.SecondaryElementStroke
+			end)
+
+			return ParagraphValue
+		end
+
+		-- Input
+		function Tab:CreateInput(InputSettings)
+			local Input = Elements.Template.Input:Clone()
+			Input.Name = InputSettings.Name
+			Input.Title.Text = InputSettings.Name
+			Input.Visible = true
+			Input.Parent = TabPage
+
+			Input.BackgroundTransparency = 1
+			Input.UIStroke.Transparency = 1
+			Input.Title.TextTransparency = 1
+
+			Input.InputFrame.InputBox.Text = InputSettings.CurrentValue or ''
+
+			Input.InputFrame.BackgroundColor3 = SelectedTheme.InputBackground
+			Input.InputFrame.UIStroke.Color = SelectedTheme.InputStroke
+
+			TweenService:Create(Input, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(Input.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+			TweenService:Create(Input.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+
+			Input.InputFrame.InputBox.PlaceholderText = InputSettings.PlaceholderText
+			Input.InputFrame.Size = UDim2.new(0, Input.InputFrame.InputBox.TextBounds.X + 24, 0, 30)
+
+			Input.InputFrame.InputBox.FocusLost:Connect(function()
+				local Success, Response = pcall(function()
+					InputSettings.Callback(Input.InputFrame.InputBox.Text)
+					InputSettings.CurrentValue = Input.InputFrame.InputBox.Text
+				end)
+
+				if not Success then
+					TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+					TweenService:Create(Input.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					Input.Title.Text = "Callback Error"
+					print("Luva | "..InputSettings.Name.." Callback Error " ..tostring(Response))
+					warn('Check docs.sirius.menu for help with Luva specific development.')
+					task.wait(0.5)
+					Input.Title.Text = InputSettings.Name
+					TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(Input.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				end
+
+				if InputSettings.RemoveTextAfterFocusLost then
+					Input.InputFrame.InputBox.Text = ""
+				end
+
+				if not InputSettings.Ext then
+					SaveConfiguration()
+				end
+			end)
+
+			Input.MouseEnter:Connect(function()
+				TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+			end)
+
+			Input.MouseLeave:Connect(function()
+				TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+			end)
+
+			Input.InputFrame.InputBox:GetPropertyChangedSignal("Text"):Connect(function()
+				TweenService:Create(Input.InputFrame, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, Input.InputFrame.InputBox.TextBounds.X + 24, 0, 30)}):Play()
+			end)
+
+			function InputSettings:Set(text)
+				Input.InputFrame.InputBox.Text = text
+				InputSettings.CurrentValue = text
+
+				local Success, Response = pcall(function()
+					InputSettings.Callback(text)
+				end)
+
+				if not InputSettings.Ext then
+					SaveConfiguration()
+				end
+			end
+
+			if Settings.ConfigurationSaving then
+				if Settings.ConfigurationSaving.Enabled and InputSettings.Flag then
+					LuvaLibrary.Flags[InputSettings.Flag] = InputSettings
+				end
+			end
+
+			Luva.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
+				Input.InputFrame.BackgroundColor3 = SelectedTheme.InputBackground
+				Input.InputFrame.UIStroke.Color = SelectedTheme.InputStroke
+			end)
+
+			return InputSettings
+		end
+
+		-- Dropdown
+		function Tab:CreateDropdown(DropdownSettings)
+			local Dropdown = Elements.Template.Dropdown:Clone()
+			if string.find(DropdownSettings.Name,"closed") then
+				Dropdown.Name = "Dropdown"
+			else
+				Dropdown.Name = DropdownSettings.Name
+			end
+			Dropdown.Title.Text = DropdownSettings.Name
+			Dropdown.Visible = true
+			Dropdown.Parent = TabPage
+
+			Dropdown.List.Visible = false
+			if DropdownSettings.CurrentOption then
+				if type(DropdownSettings.CurrentOption) == "string" then
+					DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption}
+				end
+				if not DropdownSettings.MultipleOptions and type(DropdownSettings.CurrentOption) == "table" then
+					DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption[1]}
+				end
+			else
+				DropdownSettings.CurrentOption = {}
+			end
+
+			if DropdownSettings.MultipleOptions then
+				if DropdownSettings.CurrentOption and type(DropdownSettings.CurrentOption) == "table" then
+					if #DropdownSettings.CurrentOption == 1 then
+						Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
+					elseif #DropdownSettings.CurrentOption == 0 then
+						Dropdown.Selected.Text = "None"
+					else
+						Dropdown.Selected.Text = "Various"
+					end
+				else
+					DropdownSettings.CurrentOption = {}
+					Dropdown.Selected.Text = "None"
+				end
+			else
+				Dropdown.Selected.Text = DropdownSettings.CurrentOption[1] or "None"
+			end
+
+			Dropdown.Toggle.ImageColor3 = SelectedTheme.TextColor
+			TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+
+			Dropdown.BackgroundTransparency = 1
+			Dropdown.UIStroke.Transparency = 1
+			Dropdown.Title.TextTransparency = 1
+
+			Dropdown.Size = UDim2.new(1, -10, 0, 45)
+
+			TweenService:Create(Dropdown, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+			TweenService:Create(Dropdown.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+
+			for _, ununusedoption in ipairs(Dropdown.List:GetChildren()) do
+				if ununusedoption.ClassName == "Frame" and ununusedoption.Name ~= "Placeholder" then
+					ununusedoption:Destroy()
+				end
+			end
+
+			Dropdown.Toggle.Rotation = 180
+
+			Dropdown.Interact.MouseButton1Click:Connect(function()
+				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+				TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+				task.wait(0.1)
+				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+				TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				if Debounce then return end
+				if Dropdown.List.Visible then
+					Debounce = true
+					TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 45)}):Play()
+					for _, DropdownOpt in ipairs(Dropdown.List:GetChildren()) do
+						if DropdownOpt.ClassName == "Frame" and DropdownOpt.Name ~= "Placeholder" then
+							TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+							TweenService:Create(DropdownOpt.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+							TweenService:Create(DropdownOpt.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+						end
+					end
+					TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 1}):Play()
+					TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 180}):Play()	
+					task.wait(0.35)
+					Dropdown.List.Visible = false
+					Debounce = false
+				else
+					TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 180)}):Play()
+					Dropdown.List.Visible = true
+					TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 0.7}):Play()
+					TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 0}):Play()	
+					for _, DropdownOpt in ipairs(Dropdown.List:GetChildren()) do
+						if DropdownOpt.ClassName == "Frame" and DropdownOpt.Name ~= "Placeholder" then
+							if DropdownOpt.Name ~= Dropdown.Selected.Text then
+								TweenService:Create(DropdownOpt.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+							end
+							TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+							TweenService:Create(DropdownOpt.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+						end
+					end
+				end
+			end)
+
+			Dropdown.MouseEnter:Connect(function()
+				if not Dropdown.List.Visible then
+					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+				end
+			end)
+
+			Dropdown.MouseLeave:Connect(function()
+				TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+			end)
+
+			local function SetDropdownOptions()
+				for _, Option in ipairs(DropdownSettings.Options) do
+					local DropdownOption = Elements.Template.Dropdown.List.Template:Clone()
+					DropdownOption.Name = Option
+					DropdownOption.Title.Text = Option
+					DropdownOption.Parent = Dropdown.List
+					DropdownOption.Visible = true
+
+					DropdownOption.BackgroundTransparency = 1
+					DropdownOption.UIStroke.Transparency = 1
+					DropdownOption.Title.TextTransparency = 1
+
+					--local Dropdown = Tab:CreateDropdown({
+					--	Name = "Dropdown Example",
+					--	Options = {"Option 1","Option 2"},
+					--	CurrentOption = {"Option 1"},
+					--  MultipleOptions = true,
+					--	Flag = "Dropdown1",
+					--	Callback = function(TableOfOptions)
+
+					--	end,
+					--})
+
+
+					DropdownOption.Interact.ZIndex = 50
+					DropdownOption.Interact.MouseButton1Click:Connect(function()
+						if not DropdownSettings.MultipleOptions and table.find(DropdownSettings.CurrentOption, Option) then 
+							return
+						end
+
+						if table.find(DropdownSettings.CurrentOption, Option) then
+							table.remove(DropdownSettings.CurrentOption, table.find(DropdownSettings.CurrentOption, Option))
+							if DropdownSettings.MultipleOptions then
+								if #DropdownSettings.CurrentOption == 1 then
+									Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
+								elseif #DropdownSettings.CurrentOption == 0 then
+									Dropdown.Selected.Text = "None"
+								else
+									Dropdown.Selected.Text = "Various"
+								end
+							else
+								Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
+							end
+						else
+							if not DropdownSettings.MultipleOptions then
+								table.clear(DropdownSettings.CurrentOption)
+							end
+							table.insert(DropdownSettings.CurrentOption, Option)
+							if DropdownSettings.MultipleOptions then
+								if #DropdownSettings.CurrentOption == 1 then
+									Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
+								elseif #DropdownSettings.CurrentOption == 0 then
+									Dropdown.Selected.Text = "None"
+								else
+									Dropdown.Selected.Text = "Various"
+								end
+							else
+								Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
+							end
+							TweenService:Create(DropdownOption.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+							TweenService:Create(DropdownOption, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.DropdownSelected}):Play()
+							Debounce = true
+						end
+
+
+						local Success, Response = pcall(function()
+							DropdownSettings.Callback(DropdownSettings.CurrentOption)
+						end)
+
+						if not Success then
+							TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+							TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+							Dropdown.Title.Text = "Callback Error"
+							print("Luva | "..DropdownSettings.Name.." Callback Error " ..tostring(Response))
+							warn('Check docs.sirius.menu for help with Luva specific development.')
+							task.wait(0.5)
+							Dropdown.Title.Text = DropdownSettings.Name
+							TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+							TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+						end
+
+						for _, droption in ipairs(Dropdown.List:GetChildren()) do
+							if droption.ClassName == "Frame" and droption.Name ~= "Placeholder" and not table.find(DropdownSettings.CurrentOption, droption.Name) then
+								TweenService:Create(droption, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.DropdownUnselected}):Play()
+							end
+						end
+						if not DropdownSettings.MultipleOptions then
+							task.wait(0.1)
+							TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 45)}):Play()
+							for _, DropdownOpt in ipairs(Dropdown.List:GetChildren()) do
+								if DropdownOpt.ClassName == "Frame" and DropdownOpt.Name ~= "Placeholder" then
+									TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+									TweenService:Create(DropdownOpt.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+									TweenService:Create(DropdownOpt.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+								end
+							end
+							TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 1}):Play()
+							TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 180}):Play()	
+							task.wait(0.35)
+							Dropdown.List.Visible = false
+						end
+						Debounce = false
+						if not DropdownSettings.Ext then
+							SaveConfiguration()
+						end
+					end)
+
+					Luva.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
+						DropdownOption.UIStroke.Color = SelectedTheme.ElementStroke
+					end)
+				end
+			end
+			SetDropdownOptions()
+
+			for _, droption in ipairs(Dropdown.List:GetChildren()) do
+				if droption.ClassName == "Frame" and droption.Name ~= "Placeholder" then
+					if not table.find(DropdownSettings.CurrentOption, droption.Name) then
+						droption.BackgroundColor3 = SelectedTheme.DropdownUnselected
+					else
+						droption.BackgroundColor3 = SelectedTheme.DropdownSelected
+					end
+
+					Luva.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
+						if not table.find(DropdownSettings.CurrentOption, droption.Name) then
+							droption.BackgroundColor3 = SelectedTheme.DropdownUnselected
+						else
+							droption.BackgroundColor3 = SelectedTheme.DropdownSelected
+						end
+					end)
+				end
+			end
+
+			function DropdownSettings:Set(NewOption)
+				DropdownSettings.CurrentOption = NewOption
+
+				if typeof(DropdownSettings.CurrentOption) == "string" then
+					DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption}
+				end
+
+				if not DropdownSettings.MultipleOptions then
+					DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption[1]}
+				end
+
+				if DropdownSettings.MultipleOptions then
+					if #DropdownSettings.CurrentOption == 1 then
+						Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
+					elseif #DropdownSettings.CurrentOption == 0 then
+						Dropdown.Selected.Text = "None"
+					else
+						Dropdown.Selected.Text = "Various"
+					end
+				else
+					Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
+				end
+
+
+				local Success, Response = pcall(function()
+					DropdownSettings.Callback(NewOption)
+				end)
+				if not Success then
+					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+					TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					Dropdown.Title.Text = "Callback Error"
+					print("Luva | "..DropdownSettings.Name.." Callback Error " ..tostring(Response))
+					warn('Check docs.sirius.menu for help with Luva specific development.')
+					task.wait(0.5)
+					Dropdown.Title.Text = DropdownSettings.Name
+					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				end
+
+				for _, droption in ipairs(Dropdown.List:GetChildren()) do
+					if droption.ClassName == "Frame" and droption.Name ~= "Placeholder" then
+						if not table.find(DropdownSettings.CurrentOption, droption.Name) then
+							droption.BackgroundColor3 = SelectedTheme.DropdownUnselected
+						else
+							droption.BackgroundColor3 = SelectedTheme.DropdownSelected
+						end
+					end
+				end
+				--SaveConfiguration()
+			end
+
+			function DropdownSettings:Refresh(optionsTable: table) -- updates a dropdown with new options from optionsTable
+				DropdownSettings.Options = optionsTable
+				for _, option in Dropdown.List:GetChildren() do
+					if option.ClassName == "Frame" and option.Name ~= "Placeholder" then
+						option:Destroy()
+					end
+				end
+				SetDropdownOptions()
+
+				-- Apply selected/unselected background colors to new options
+				for _, droption in ipairs(Dropdown.List:GetChildren()) do
+					if droption.ClassName == "Frame" and droption.Name ~= "Placeholder" then
+						if not table.find(DropdownSettings.CurrentOption, droption.Name) then
+							droption.BackgroundColor3 = SelectedTheme.DropdownUnselected
+						else
+							droption.BackgroundColor3 = SelectedTheme.DropdownSelected
+						end
+					end
+				end
+
+				-- If the dropdown is currently open, make new options visible immediately
+				if Dropdown.List.Visible then
+					for _, DropdownOpt in ipairs(Dropdown.List:GetChildren()) do
+						if DropdownOpt.ClassName == "Frame" and DropdownOpt.Name ~= "Placeholder" then
+							DropdownOpt.BackgroundTransparency = 0
+							DropdownOpt.Title.TextTransparency = 0
+							if not table.find(DropdownSettings.CurrentOption, DropdownOpt.Name) then
+								DropdownOpt.UIStroke.Transparency = 0
+							end
+						end
+					end
+				end
+			end
+
+			if Settings.ConfigurationSaving then
+				if Settings.ConfigurationSaving.Enabled and DropdownSettings.Flag then
+					LuvaLibrary.Flags[DropdownSettings.Flag] = DropdownSettings
+				end
+			end
+
+			Luva.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
+				Dropdown.Toggle.ImageColor3 = SelectedTheme.TextColor
+				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+			end)
+
+			return DropdownSettings
+		end
+
+		-- Keybind
+		function Tab:CreateKeybind(KeybindSettings)
+			local CheckingForKey = false
+			local Keybind = Elements.Template.Keybind:Clone()
+			Keybind.Name = KeybindSettings.Name
+			Keybind.Title.Text = KeybindSettings.Name
+			Keybind.Visible = true
+			Keybind.Parent = TabPage
+
+			Keybind.BackgroundTransparency = 1
+			Keybind.UIStroke.Transparency = 1
+			Keybind.Title.TextTransparency = 1
+
+			Keybind.KeybindFrame.BackgroundColor3 = SelectedTheme.InputBackground
+			Keybind.KeybindFrame.UIStroke.Color = SelectedTheme.InputStroke
+
+			TweenService:Create(Keybind, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+			TweenService:Create(Keybind.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+
+			Keybind.KeybindFrame.KeybindBox.Text = KeybindSettings.CurrentKeybind
+			Keybind.KeybindFrame.Size = UDim2.new(0, Keybind.KeybindFrame.KeybindBox.TextBounds.X + 24, 0, 30)
+
+			Keybind.KeybindFrame.KeybindBox.Focused:Connect(function()
+				CheckingForKey = true
+				Keybind.KeybindFrame.KeybindBox.Text = ""
+			end)
+			Keybind.KeybindFrame.KeybindBox.FocusLost:Connect(function()
+				CheckingForKey = false
+				if Keybind.KeybindFrame.KeybindBox.Text == nil or Keybind.KeybindFrame.KeybindBox.Text == "" then
+					Keybind.KeybindFrame.KeybindBox.Text = KeybindSettings.CurrentKeybind
+					if not KeybindSettings.Ext then
+						SaveConfiguration()
+					end
+				end
+			end)
+
+			Keybind.MouseEnter:Connect(function()
+				TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+			end)
+
+			Keybind.MouseLeave:Connect(function()
+				TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+			end)
+
+			local connection = UserInputService.InputBegan:Connect(function(input, processed)
+				if CheckingForKey then
+					if input.KeyCode ~= Enum.KeyCode.Unknown then
+						local SplitMessage = string.split(tostring(input.KeyCode), ".")
+						local NewKeyNoEnum = SplitMessage[3]
+						Keybind.KeybindFrame.KeybindBox.Text = tostring(NewKeyNoEnum)
+						KeybindSettings.CurrentKeybind = tostring(NewKeyNoEnum)
+						Keybind.KeybindFrame.KeybindBox:ReleaseFocus()
+						if not KeybindSettings.Ext then
+							SaveConfiguration()
+						end
+
+						if KeybindSettings.CallOnChange then
+							KeybindSettings.Callback(tostring(NewKeyNoEnum))
+						end
+					end
+				elseif not KeybindSettings.CallOnChange and KeybindSettings.CurrentKeybind ~= nil and (input.KeyCode == Enum.KeyCode[KeybindSettings.CurrentKeybind] and not processed) then -- Test
+					local Held = true
+					local Connection
+					Connection = input.Changed:Connect(function(prop)
+						if prop == "UserInputState" then
+							Connection:Disconnect()
+							Held = false
+						end
+					end)
+
+					if not KeybindSettings.HoldToInteract then
+						local Success, Response = pcall(KeybindSettings.Callback)
+						if not Success then
+							TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+							TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+							Keybind.Title.Text = "Callback Error"
+							print("Luva | "..KeybindSettings.Name.." Callback Error " ..tostring(Response))
+							warn('Check docs.sirius.menu for help with Luva specific development.')
+							task.wait(0.5)
+							Keybind.Title.Text = KeybindSettings.Name
+							TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+							TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+						end
+					else
+						task.wait(0.25)
+						if Held then
+							local Loop; Loop = RunService.Stepped:Connect(function()
+								if not Held then
+									KeybindSettings.Callback(false) -- maybe pcall this
+									Loop:Disconnect()
+								else
+									KeybindSettings.Callback(true) -- maybe pcall this
+								end
+							end)
+						end
+					end
+				end
+			end)
+			table.insert(keybindConnections, connection)
+
+			Keybind.KeybindFrame.KeybindBox:GetPropertyChangedSignal("Text"):Connect(function()
+				TweenService:Create(Keybind.KeybindFrame, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, Keybind.KeybindFrame.KeybindBox.TextBounds.X + 24, 0, 30)}):Play()
+			end)
+
+			function KeybindSettings:Set(NewKeybind)
+				Keybind.KeybindFrame.KeybindBox.Text = tostring(NewKeybind)
+				KeybindSettings.CurrentKeybind = tostring(NewKeybind)
+				Keybind.KeybindFrame.KeybindBox:ReleaseFocus()
+				if not KeybindSettings.Ext then
+					SaveConfiguration()
+				end
+
+				if KeybindSettings.CallOnChange then
+					KeybindSettings.Callback(tostring(NewKeybind))
+				end
+			end
+
+			if Settings.ConfigurationSaving then
+				if Settings.ConfigurationSaving.Enabled and KeybindSettings.Flag then
+					LuvaLibrary.Flags[KeybindSettings.Flag] = KeybindSettings
+				end
+			end
+
+			Luva.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
+				Keybind.KeybindFrame.BackgroundColor3 = SelectedTheme.InputBackground
+				Keybind.KeybindFrame.UIStroke.Color = SelectedTheme.InputStroke
+			end)
+
+			return KeybindSettings
+		end
+
+		-- Toggle
+		function Tab:CreateToggle(ToggleSettings)
+			local ToggleValue = {}
+
+			local Toggle = Elements.Template.Toggle:Clone()
+			Toggle.Name = ToggleSettings.Name
+			Toggle.Title.Text = ToggleSettings.Name
+			Toggle.Visible = true
+			Toggle.Parent = TabPage
+
+			Toggle.BackgroundTransparency = 1
+			Toggle.UIStroke.Transparency = 1
+			Toggle.Title.TextTransparency = 1
+			Toggle.Switch.BackgroundColor3 = SelectedTheme.ToggleBackground
+
+			if SelectedTheme ~= LuvaLibrary.Theme.Default then
+				Toggle.Switch.Shadow.Visible = false
+			end
+
+			TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+			TweenService:Create(Toggle.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+
+			if ToggleSettings.CurrentValue == true then
+				Toggle.Switch.Indicator.Position = UDim2.new(1, -20, 0.5, 0)
+				Toggle.Switch.Indicator.UIStroke.Color = SelectedTheme.ToggleEnabledStroke
+				Toggle.Switch.Indicator.BackgroundColor3 = SelectedTheme.ToggleEnabled
+				Toggle.Switch.UIStroke.Color = SelectedTheme.ToggleEnabledOuterStroke
+			else
+				Toggle.Switch.Indicator.Position = UDim2.new(1, -40, 0.5, 0)
+				Toggle.Switch.Indicator.UIStroke.Color = SelectedTheme.ToggleDisabledStroke
+				Toggle.Switch.Indicator.BackgroundColor3 = SelectedTheme.ToggleDisabled
+				Toggle.Switch.UIStroke.Color = SelectedTheme.ToggleDisabledOuterStroke
+			end
+
+			Toggle.MouseEnter:Connect(function()
+				TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+			end)
+
+			Toggle.MouseLeave:Connect(function()
+				TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+			end)
+
+			Toggle.Interact.MouseButton1Click:Connect(function()
+				if ToggleSettings.CurrentValue == true then
+					ToggleSettings.CurrentValue = false
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(1, -40, 0.5, 0)}):Play()
+					TweenService:Create(Toggle.Switch.Indicator.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleDisabledStroke}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {BackgroundColor3 = SelectedTheme.ToggleDisabled}):Play()
+					TweenService:Create(Toggle.Switch.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleDisabledOuterStroke}):Play()
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()	
+				else
+					ToggleSettings.CurrentValue = true
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(1, -20, 0.5, 0)}):Play()
+					TweenService:Create(Toggle.Switch.Indicator.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleEnabledStroke}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {BackgroundColor3 = SelectedTheme.ToggleEnabled}):Play()
+					TweenService:Create(Toggle.Switch.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleEnabledOuterStroke}):Play()
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()		
+				end
+
+				local Success, Response = pcall(function()
+					if debugX then warn('Running toggle \''..ToggleSettings.Name..'\' (Interact)') end
+
+					ToggleSettings.Callback(ToggleSettings.CurrentValue)
+				end)
+
+				if not Success then
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					Toggle.Title.Text = "Callback Error"
+					print("Luva | "..ToggleSettings.Name.." Callback Error " ..tostring(Response))
+					warn('Check docs.sirius.menu for help with Luva specific development.')
+					task.wait(0.5)
+					Toggle.Title.Text = ToggleSettings.Name
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				end
+
+				if not ToggleSettings.Ext then
+					SaveConfiguration()
+				end
+			end)
+
+			function ToggleSettings:Set(NewToggleValue)
+				if NewToggleValue == true then
+					ToggleSettings.CurrentValue = true
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(1, -20, 0.5, 0)}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0,12,0,12)}):Play()
+					TweenService:Create(Toggle.Switch.Indicator.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleEnabledStroke}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {BackgroundColor3 = SelectedTheme.ToggleEnabled}):Play()
+					TweenService:Create(Toggle.Switch.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleEnabledOuterStroke}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0,17,0,17)}):Play()	
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()	
+				else
+					ToggleSettings.CurrentValue = false
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(1, -40, 0.5, 0)}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0,12,0,12)}):Play()
+					TweenService:Create(Toggle.Switch.Indicator.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleDisabledStroke}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {BackgroundColor3 = SelectedTheme.ToggleDisabled}):Play()
+					TweenService:Create(Toggle.Switch.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleDisabledOuterStroke}):Play()
+					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0,17,0,17)}):Play()
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()	
+				end
+
+				local Success, Response = pcall(function()
+					if debugX then warn('Running toggle \''..ToggleSettings.Name..'\' (:Set)') end
+
+					ToggleSettings.Callback(ToggleSettings.CurrentValue)
+				end)
+
+				if not Success then
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					Toggle.Title.Text = "Callback Error"
+					print("Luva | "..ToggleSettings.Name.." Callback Error " ..tostring(Response))
+					warn('Check docs.sirius.menu for help with Luva specific development.')
+					task.wait(0.5)
+					Toggle.Title.Text = ToggleSettings.Name
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				end
+
+				if not ToggleSettings.Ext then
+					SaveConfiguration()
+				end
+			end
+
+			if not ToggleSettings.Ext then
+				if Settings.ConfigurationSaving then
+					if Settings.ConfigurationSaving.Enabled and ToggleSettings.Flag then
+						LuvaLibrary.Flags[ToggleSettings.Flag] = ToggleSettings
+					end
+				end
+			end
+
+
+			Luva.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
+				Toggle.Switch.BackgroundColor3 = SelectedTheme.ToggleBackground
+
+				if SelectedTheme ~= LuvaLibrary.Theme.Default then
+					Toggle.Switch.Shadow.Visible = false
+				end
+
+				task.wait()
+
+				if not ToggleSettings.CurrentValue then
+					Toggle.Switch.Indicator.UIStroke.Color = SelectedTheme.ToggleDisabledStroke
+					Toggle.Switch.Indicator.BackgroundColor3 = SelectedTheme.ToggleDisabled
+					Toggle.Switch.UIStroke.Color = SelectedTheme.ToggleDisabledOuterStroke
+				else
+					Toggle.Switch.Indicator.UIStroke.Color = SelectedTheme.ToggleEnabledStroke
+					Toggle.Switch.Indicator.BackgroundColor3 = SelectedTheme.ToggleEnabled
+					Toggle.Switch.UIStroke.Color = SelectedTheme.ToggleEnabledOuterStroke
+				end
+			end)
+
+			return ToggleSettings
+		end
+
+		-- Slider
+		function Tab:CreateSlider(SliderSettings)
+			local SLDragging = false
+			local Slider = Elements.Template.Slider:Clone()
+			Slider.Name = SliderSettings.Name
+			Slider.Title.Text = SliderSettings.Name
+			Slider.Visible = true
+			Slider.Parent = TabPage
+
+			Slider.BackgroundTransparency = 1
+			Slider.UIStroke.Transparency = 1
+			Slider.Title.TextTransparency = 1
+
+			if SelectedTheme ~= LuvaLibrary.Theme.Default then
+				Slider.Main.Shadow.Visible = false
+			end
+
+			Slider.Main.BackgroundColor3 = SelectedTheme.SliderBackground
+			Slider.Main.UIStroke.Color = SelectedTheme.SliderStroke
+			Slider.Main.Progress.UIStroke.Color = SelectedTheme.SliderStroke
+			Slider.Main.Progress.BackgroundColor3 = SelectedTheme.SliderProgress
+
+			TweenService:Create(Slider, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(Slider.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+			TweenService:Create(Slider.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+
+			Slider.Main.Progress.Size =	UDim2.new(0, Slider.Main.AbsoluteSize.X * ((SliderSettings.CurrentValue - SliderSettings.Range[1]) / (SliderSettings.Range[2] - SliderSettings.Range[1])) > 5 and Slider.Main.AbsoluteSize.X * ((SliderSettings.CurrentValue - SliderSettings.Range[1]) / (SliderSettings.Range[2] - SliderSettings.Range[1])) or 5, 1, 0)
+
+			if not SliderSettings.Suffix then
+				Slider.Main.Information.Text = tostring(SliderSettings.CurrentValue)
+			else
+				Slider.Main.Information.Text = tostring(SliderSettings.CurrentValue) .. " " .. SliderSettings.Suffix
+			end
+
+			Slider.MouseEnter:Connect(function()
+				TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+			end)
+
+			Slider.MouseLeave:Connect(function()
+				TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+			end)
+
+			Slider.Main.Interact.InputBegan:Connect(function(Input)
+				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then 
+					TweenService:Create(Slider.Main.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Slider.Main.Progress.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					SLDragging = true 
+				end 
+			end)
+
+			Slider.Main.Interact.InputEnded:Connect(function(Input) 
+				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then 
+					TweenService:Create(Slider.Main.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0.4}):Play()
+					TweenService:Create(Slider.Main.Progress.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0.3}):Play()
+					SLDragging = false 
+				end 
+			end)
+
+			Slider.Main.Interact.MouseButton1Down:Connect(function(X)
+				local Current = Slider.Main.Progress.AbsolutePosition.X + Slider.Main.Progress.AbsoluteSize.X
+				local Start = Current
+				local Location = X
+				local Loop; Loop = RunService.Stepped:Connect(function()
+					if SLDragging then
+						Location = UserInputService:GetMouseLocation().X
+						Current = Current + 0.025 * (Location - Start)
+
+						if Location < Slider.Main.AbsolutePosition.X then
+							Location = Slider.Main.AbsolutePosition.X
+						elseif Location > Slider.Main.AbsolutePosition.X + Slider.Main.AbsoluteSize.X then
+							Location = Slider.Main.AbsolutePosition.X + Slider.Main.AbsoluteSize.X
+						end
+
+						if Current < Slider.Main.AbsolutePosition.X + 5 then
+							Current = Slider.Main.AbsolutePosition.X + 5
+						elseif Current > Slider.Main.AbsolutePosition.X + Slider.Main.AbsoluteSize.X then
+							Current = Slider.Main.AbsolutePosition.X + Slider.Main.AbsoluteSize.X
+						end
+
+						if Current <= Location and (Location - Start) < 0 then
+							Start = Location
+						elseif Current >= Location and (Location - Start) > 0 then
+							Start = Location
+						end
+						TweenService:Create(Slider.Main.Progress, TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, Current - Slider.Main.AbsolutePosition.X, 1, 0)}):Play()
+						local NewValue = SliderSettings.Range[1] + (Location - Slider.Main.AbsolutePosition.X) / Slider.Main.AbsoluteSize.X * (SliderSettings.Range[2] - SliderSettings.Range[1])
+
+						NewValue = math.floor(NewValue / SliderSettings.Increment + 0.5) * (SliderSettings.Increment * 10000000) / 10000000
+						NewValue = math.clamp(NewValue, SliderSettings.Range[1], SliderSettings.Range[2])
+
+						if not SliderSettings.Suffix then
+							Slider.Main.Information.Text = tostring(NewValue)
+						else
+							Slider.Main.Information.Text = tostring(NewValue) .. " " .. SliderSettings.Suffix
+						end
+
+						if SliderSettings.CurrentValue ~= NewValue then
+							local Success, Response = pcall(function()
+								SliderSettings.Callback(NewValue)
+							end)
+							if not Success then
+								TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+								TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+								Slider.Title.Text = "Callback Error"
+								print("Luva | "..SliderSettings.Name.." Callback Error " ..tostring(Response))
+								warn('Check docs.sirius.menu for help with Luva specific development.')
+								task.wait(0.5)
+								Slider.Title.Text = SliderSettings.Name
+								TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+								TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+							end
+
+							SliderSettings.CurrentValue = NewValue
+							if not SliderSettings.Ext then
+								SaveConfiguration()
+							end
+						end
+					else
+						TweenService:Create(Slider.Main.Progress, TweenInfo.new(0.3, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, Location - Slider.Main.AbsolutePosition.X > 5 and Location - Slider.Main.AbsolutePosition.X or 5, 1, 0)}):Play()
+						Loop:Disconnect()
+					end
+				end)
+			end)
+
+			function SliderSettings:Set(NewVal)
+				local NewVal = math.clamp(NewVal, SliderSettings.Range[1], SliderSettings.Range[2])
+
+				TweenService:Create(Slider.Main.Progress, TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, Slider.Main.AbsoluteSize.X * ((NewVal - SliderSettings.Range[1]) / (SliderSettings.Range[2] - SliderSettings.Range[1])) > 5 and Slider.Main.AbsoluteSize.X * ((NewVal - SliderSettings.Range[1]) / (SliderSettings.Range[2] - SliderSettings.Range[1])) or 5, 1, 0)}):Play()
+				Slider.Main.Information.Text = tostring(NewVal) .. " " .. (SliderSettings.Suffix or "")
+
+				local Success, Response = pcall(function()
+					SliderSettings.Callback(NewVal)
+				end)
+
+				if not Success then
+					TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+					TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					Slider.Title.Text = "Callback Error"
+					print("Luva | "..SliderSettings.Name.." Callback Error " ..tostring(Response))
+					warn('Check docs.sirius.menu for help with Luva specific development.')
+					task.wait(0.5)
+					Slider.Title.Text = SliderSettings.Name
+					TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+					TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				end
+
+				SliderSettings.CurrentValue = NewVal
+				if not SliderSettings.Ext then
+					SaveConfiguration()
+				end
+			end
+
+			if Settings.ConfigurationSaving then
+				if Settings.ConfigurationSaving.Enabled and SliderSettings.Flag then
+					LuvaLibrary.Flags[SliderSettings.Flag] = SliderSettings
+				end
+			end
+
+			Luva.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
+				if SelectedTheme ~= LuvaLibrary.Theme.Default then
+					Slider.Main.Shadow.Visible = false
+				end
+
+				Slider.Main.BackgroundColor3 = SelectedTheme.SliderBackground
+				Slider.Main.UIStroke.Color = SelectedTheme.SliderStroke
+				Slider.Main.Progress.UIStroke.Color = SelectedTheme.SliderStroke
+				Slider.Main.Progress.BackgroundColor3 = SelectedTheme.SliderProgress
+			end)
+
+			return SliderSettings
+		end
+
+		Luva.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
+			TabButton.UIStroke.Color = SelectedTheme.TabStroke
+
+			if Elements.UIPageLayout.CurrentPage == TabPage then
+				TabButton.BackgroundColor3 = SelectedTheme.TabBackgroundSelected
+				TabButton.Image.ImageColor3 = SelectedTheme.SelectedTabTextColor
+				TabButton.Title.TextColor3 = SelectedTheme.SelectedTabTextColor
+			else
+				TabButton.BackgroundColor3 = SelectedTheme.TabBackground
+				TabButton.Image.ImageColor3 = SelectedTheme.TabTextColor
+				TabButton.Title.TextColor3 = SelectedTheme.TabTextColor
+			end
+		end)
+
+		return Tab
+	end
+
+	Elements.Visible = true
+
+
+	task.wait(1.1)
+	TweenService:Create(Main, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut), {Size = UDim2.new(0, 390, 0, 90)}):Play()
+	task.wait(0.3)
+	TweenService:Create(LoadingFrame.Title, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+	TweenService:Create(LoadingFrame.Subtitle, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+	TweenService:Create(LoadingFrame.Version, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+	task.wait(0.1)
+	TweenService:Create(Main, TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475)}):Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.6}):Play()
+
+	Topbar.BackgroundTransparency = 1
+	Topbar.Divider.Size = UDim2.new(0, 0, 0, 1)
+	Topbar.Divider.BackgroundColor3 = SelectedTheme.ElementStroke
+	Topbar.CornerRepair.BackgroundTransparency = 1
+	Topbar.Title.TextTransparency = 1
+	Topbar.Search.ImageTransparency = 1
+	if Topbar:FindFirstChild('Settings') then
+		Topbar.Settings.ImageTransparency = 1
+	end
+	Topbar.ChangeSize.ImageTransparency = 1
+	Topbar.Hide.ImageTransparency = 1
+
+
+	task.wait(0.5)
+	Topbar.Visible = true
+	TweenService:Create(Topbar, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+	task.wait(0.1)
+	TweenService:Create(Topbar.Divider, TweenInfo.new(1, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, 0, 0, 1)}):Play()
+	TweenService:Create(Topbar.Title, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+	task.wait(0.05)
+	TweenService:Create(Topbar.Search, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+	task.wait(0.05)
+	if Topbar:FindFirstChild('Settings') then
+		TweenService:Create(Topbar.Settings, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+		task.wait(0.05)
+	end
+	TweenService:Create(Topbar.ChangeSize, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+	task.wait(0.05)
+	TweenService:Create(Topbar.Hide, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+	task.wait(0.3)
+
+	if dragBar then
+		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
+	end
+
+	function Window.ModifyTheme(NewTheme)
+		local success = pcall(ChangeTheme, NewTheme)
+		if not success then
+			LuvaLibrary:Notify({Title = 'Unable to Change Theme', Content = 'We are unable find a theme on file.', Image = 4400704299})
+		else
+			LuvaLibrary:Notify({Title = 'Theme Changed', Content = 'Successfully changed theme to '..(typeof(NewTheme) == 'string' and NewTheme or 'Custom Theme')..'.', Image = 4483362748})
+		end
+	end
+
+	local success, result = pcall(function()
+		createSettings(Window)
+	end)
+
+	if not success then warn('Luva had an issue creating settings.') end
+
+	return Window
+end
+
+local function setVisibility(visibility: boolean, notify: boolean?)
+	if Debounce then return end
+	if visibility then
+		Hidden = false
+		Unhide()
+	else
+		Hidden = true
+		Hide(notify)
+	end
+end
+
+function LuvaLibrary:SetVisibility(visibility: boolean)
+	setVisibility(visibility, false)
+end
+
+function LuvaLibrary:IsVisible(): boolean
+	return not Hidden
+end
+
+local hideHotkeyConnection -- Has to be initialized here since the connection is made later in the script
+function LuvaLibrary:Destroy()
+	luvaDestroyed = true
+	if hideHotkeyConnection then
+		hideHotkeyConnection:Disconnect()
+	end
+	for _, connection in keybindConnections do
+		connection:Disconnect()
+	end
+	Luva:Destroy()
+end
+
+Topbar.ChangeSize.MouseButton1Click:Connect(function()
+	if Debounce then return end
+	if Minimised then
+		Minimised = false
+		Maximise()
+	else
+		Minimised = true
+		Minimise()
+	end
+end)
+
+Main.Search.Input:GetPropertyChangedSignal('Text'):Connect(function()
+	if #Main.Search.Input.Text > 0 then
+		if not Elements.UIPageLayout.CurrentPage:FindFirstChild('SearchTitle-fsefsefesfsefesfesfThanks') then 
+			local searchTitle = Elements.Template.SectionTitle:Clone()
+			searchTitle.Parent = Elements.UIPageLayout.CurrentPage
+			searchTitle.Name = 'SearchTitle-fsefsefesfsefesfesfThanks'
+			searchTitle.LayoutOrder = -100
+			searchTitle.Title.Text = "Results from '"..Elements.UIPageLayout.CurrentPage.Name.."'"
+			searchTitle.Visible = true
+		end
+	else
+		local searchTitle = Elements.UIPageLayout.CurrentPage:FindFirstChild('SearchTitle-fsefsefesfsefesfesfThanks')
+
+		if searchTitle then
+			searchTitle:Destroy()
+		end
+	end
+
+	for _, element in ipairs(Elements.UIPageLayout.CurrentPage:GetChildren()) do
+		if element.ClassName ~= 'UIListLayout' and element.Name ~= 'Placeholder' and element.Name ~= 'SearchTitle-fsefsefesfsefesfesfThanks' then
+			if element.Name == 'SectionTitle' then
+				if #Main.Search.Input.Text == 0 then
+					element.Visible = true
+				else
+					element.Visible = false
+				end
+			else
+				if string.lower(element.Name):find(string.lower(Main.Search.Input.Text), 1, true) then
+					element.Visible = true
+				else
+					element.Visible = false
+				end
+			end
+		end
+	end
+end)
+
+Main.Search.Input.FocusLost:Connect(function(enterPressed)
+	if #Main.Search.Input.Text == 0 and searchOpen then
+		task.wait(0.12)
+		closeSearch()
+	end
+end)
+
+Topbar.Search.MouseButton1Click:Connect(function()
+	task.spawn(function()
+		if searchOpen then
+			closeSearch()
+		else
+			openSearch()
+		end
+	end)
+end)
+
+if Topbar:FindFirstChild('Settings') then
+	Topbar.Settings.MouseButton1Click:Connect(function()
+		task.spawn(function()
+			for _, OtherTabButton in ipairs(TabList:GetChildren()) do
+				if OtherTabButton.Name ~= "Template" and OtherTabButton.ClassName == "Frame" and OtherTabButton.Name ~= "Placeholder" then
+					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.TabBackground}):Play()
+					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextColor3 = SelectedTheme.TabTextColor}):Play()
+					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageColor3 = SelectedTheme.TabTextColor}):Play()
+					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
+					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
+					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
+					TweenService:Create(OtherTabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+				end
+			end
+
+			Elements.UIPageLayout:JumpTo(Elements['Luva Settings'])
+		end)
+	end)
+
+end
+
+
+Topbar.Hide.MouseButton1Click:Connect(function()
+	setVisibility(Hidden, not useMobileSizing)
+end)
+
+hideHotkeyConnection = UserInputService.InputBegan:Connect(function(input, processed)
+	if (input.KeyCode == Enum.KeyCode[getSetting("General", "luvaOpen")]) and not processed then
+		if Debounce then return end
+		if Hidden then
+			Hidden = false
+			Unhide()
+		else
+			Hidden = true
+			Hide()
+		end
+	end
+end)
+
+if MPrompt then
+	MPrompt.Interact.MouseButton1Click:Connect(function()
+		if Debounce then return end
+		if Hidden then
+			Hidden = false
+			Unhide()
+		end
+	end)
+end
+
+for _, TopbarButton in ipairs(Topbar:GetChildren()) do
+	if TopbarButton.ClassName == "ImageButton" and TopbarButton.Name ~= 'Icon' then
+		TopbarButton.MouseEnter:Connect(function()
+			TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+		end)
+
+		TopbarButton.MouseLeave:Connect(function()
+			TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+		end)
+	end
+end
+
+
+function LuvaLibrary:LoadConfiguration()
+	local config
+
+	if debugX then
+		warn('Loading Configuration')
+	end
+
+	if useStudio then
+		config = [[{"Toggle1adwawd":true,"ColorPicker1awd":{"B":255,"G":255,"R":255},"Slider1dawd":100,"ColorPicfsefker1":{"B":255,"G":255,"R":255},"Slidefefsr1":80,"dawdawd":"","Input1":"hh","Keybind1":"B","Dropdown1":["Ocean"]}]]
+	end
+
+	if CEnabled then
+		local notified
+		local loaded
+
+		local success, result = pcall(function()
+			if useStudio and config then
+				loaded = LoadConfiguration(config)
+				return
+			end
+
+			if isfile then 
+				if callSafely(isfile, ConfigurationFolder .. "/" .. CFileName .. ConfigurationExtension) then
+					loaded = LoadConfiguration(callSafely(readfile, ConfigurationFolder .. "/" .. CFileName .. ConfigurationExtension))
+				end
+			else
+				notified = true
+				LuvaLibrary:Notify({Title = "Luva Configurations", Content = "We couldn't enable Configuration Saving as you are not using software with filesystem support.", Image = 4384402990})
+			end
+		end)
+
+		if success and loaded and not notified then
+			LuvaLibrary:Notify({Title = "Luva Configurations", Content = "The configuration file for this script has been loaded from a previous session.", Image = 4384403532})
+		elseif not success and not notified then
+			warn('Luva Configurations Error | '..tostring(result))
+			LuvaLibrary:Notify({Title = "Luva Configurations", Content = "We've encountered an issue loading your configuration correctly.\n\nCheck the Developer Console for more information.", Image = 4384402990})
+		end
+	end
+
+	globalLoaded = true
+end
+
+
+
+if useStudio then
+	-- run w/ studio
+	-- Feel free to place your own script here to see how it'd work in Roblox Studio before running it on your execution software.
+
+
+	--local Window = LuvaLibrary:CreateWindow({
+	--	Name = "Luva Example Window",
+	--	LoadingTitle = "Luva Interface Suite",
+	--	Theme = 'Default',
+	--	Icon = 0,
+	--	LoadingSubtitle = "by Sirius",
+	--	ConfigurationSaving = {
+	--		Enabled = true,
+	--		FolderName = nil, -- Create a custom folder for your hub/game
+	--		FileName = "Big Hub52"
+	--	},
+	--	Discord = {
+	--		Enabled = false,
+	--		Invite = "noinvitelink", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ABCD would be ABCD
+	--		RememberJoins = true -- Set this to false to make them join the discord every time they load it up
+	--	},
+	--	KeySystem = false, -- Set this to true to use our key system
+	--	KeySettings = {
+	--		Title = "Untitled",
+	--		Subtitle = "Key System",
+	--		Note = "No method of obtaining the key is provided",
+	--		FileName = "Key", -- It is recommended to use something unique as other scripts using Luva may overwrite your key file
+	--		SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+	--		GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Luva to get the key from
+	--		Key = {"Hello"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+	--	}
+	--})
+
+	--local Tab = Window:CreateTab("Tab Example", 'key-round') -- Title, Image
+	--local Tab2 = Window:CreateTab("Tab Example 2", 4483362458) -- Title, Image
+
+	--local Section = Tab2:CreateSection("Section")
+
+
+	--local ColorPicker = Tab2:CreateColorPicker({
+	--	Name = "Color Picker",
+	--	Color = Color3.fromRGB(255,255,255),
+	--	Flag = "ColorPicfsefker1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+	--	Callback = function(Value)
+	--		-- The function that takes place every time the color picker is moved/changed
+	--		-- The variable (Value) is a Color3fromRGB value based on which color is selected
+	--	end
+	--})
+
+	--local Slider = Tab2:CreateSlider({
+	--	Name = "Slider Example",
+	--	Range = {0, 100},
+	--	Increment = 10,
+	--	Suffix = "Bananas",
+	--	CurrentValue = 40,
+	--	Flag = "Slidefefsr1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+	--	Callback = function(Value)
+	--		-- The function that takes place when the slider changes
+	--		-- The variable (Value) is a number which correlates to the value the slider is currently at
+	--	end,
+	--})
+
+	--local Input = Tab2:CreateInput({
+	--	Name = "Input Example",
+	--	CurrentValue = '',
+	--	PlaceholderText = "Input Placeholder",
+	--	Flag = 'dawdawd',
+	--	RemoveTextAfterFocusLost = false,
+	--	Callback = function(Text)
+	--		-- The function that takes place when the input is changed
+	--		-- The variable (Text) is a string for the value in the text box
+	--	end,
+	--})
+
+
+	----LuvaLibrary:Notify({Title = "Luva Interface", Content = "Welcome to Luva. These - are the brand new notification design for Luva, with custom sizing and Luva calculated wait times.", Image = 4483362458})
+
+	--local Section = Tab:CreateSection("Section Example")
+
+	--local Button = Tab:CreateButton({
+	--	Name = "Change Theme",
+	--	Callback = function()
+	--		-- The function that takes place when the button is pressed
+	--		Window.ModifyTheme('DarkBlue')
+	--	end,
+	--})
+
+	--local Toggle = Tab:CreateToggle({
+	--	Name = "Toggle Example",
+	--	CurrentValue = false,
+	--	Flag = "Toggle1adwawd", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+	--	Callback = function(Value)
+	--		-- The function that takes place when the toggle is pressed
+	--		-- The variable (Value) is a boolean on whether the toggle is true or false
+	--	end,
+	--})
+
+	--local ColorPicker = Tab:CreateColorPicker({
+	--	Name = "Color Picker",
+	--	Color = Color3.fromRGB(255,255,255),
+	--	Flag = "ColorPicker1awd", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+	--	Callback = function(Value)
+	--		-- The function that takes place every time the color picker is moved/changed
+	--		-- The variable (Value) is a Color3fromRGB value based on which color is selected
+	--	end
+	--})
+
+	--local Slider = Tab:CreateSlider({
+	--	Name = "Slider Example",
+	--	Range = {0, 100},
+	--	Increment = 10,
+	--	Suffix = "Bananas",
+	--	CurrentValue = 40,
+	--	Flag = "Slider1dawd", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+	--	Callback = function(Value)
+	--		-- The function that takes place when the slider changes
+	--		-- The variable (Value) is a number which correlates to the value the slider is currently at
+	--	end,
+	--})
+
+	--local Input = Tab:CreateInput({
+	--	Name = "Input Example",
+	--	CurrentValue = "Helo",
+	--	PlaceholderText = "Adaptive Input",
+	--	RemoveTextAfterFocusLost = false,
+	--	Flag = 'Input1',
+	--	Callback = function(Text)
+	--		-- The function that takes place when the input is changed
+	--		-- The variable (Text) is a string for the value in the text box
+	--	end,
+	--})
+
+	--local thoptions = {}
+	--for themename, theme in pairs(LuvaLibrary.Theme) do
+	--	table.insert(thoptions, themename)
+	--end
+
+	--local Dropdown = Tab:CreateDropdown({
+	--	Name = "Theme",
+	--	Options = thoptions,
+	--	CurrentOption = {"Default"},
+	--	MultipleOptions = false,
+	--	Flag = "Dropdown1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+	--	Callback = function(Options)
+	--		--Window.ModifyTheme(Options[1])
+	--		-- The function that takes place when the selected option is changed
+	--		-- The variable (Options) is a table of strings for the current selected options
+	--	end,
+	--})
+
+
+	--Window.ModifyTheme({
+	--	TextColor = Color3.fromRGB(50, 55, 60),
+	--	Background = Color3.fromRGB(240, 245, 250),
+	--	Topbar = Color3.fromRGB(215, 225, 235),
+	--	Shadow = Color3.fromRGB(200, 210, 220),
+
+	--	NotificationBackground = Color3.fromRGB(210, 220, 230),
+	--	NotificationActionsBackground = Color3.fromRGB(225, 230, 240),
+
+	--	TabBackground = Color3.fromRGB(200, 210, 220),
+	--	TabStroke = Color3.fromRGB(180, 190, 200),
+	--	TabBackgroundSelected = Color3.fromRGB(175, 185, 200),
+	--	TabTextColor = Color3.fromRGB(50, 55, 60),
+	--	SelectedTabTextColor = Color3.fromRGB(30, 35, 40),
+
+	--	ElementBackground = Color3.fromRGB(210, 220, 230),
+	--	ElementBackgroundHover = Color3.fromRGB(220, 230, 240),
+	--	SecondaryElementBackground = Color3.fromRGB(200, 210, 220),
+	--	ElementStroke = Color3.fromRGB(190, 200, 210),
+	--	SecondaryElementStroke = Color3.fromRGB(180, 190, 200),
+
+	--	SliderBackground = Color3.fromRGB(200, 220, 235),  -- Lighter shade
+	--	SliderProgress = Color3.fromRGB(70, 130, 180),
+	--	SliderStroke = Color3.fromRGB(150, 180, 220),
+
+	--	ToggleBackground = Color3.fromRGB(210, 220, 230),
+	--	ToggleEnabled = Color3.fromRGB(70, 160, 210),
+	--	ToggleDisabled = Color3.fromRGB(180, 180, 180),
+	--	ToggleEnabledStroke = Color3.fromRGB(60, 150, 200),
+	--	ToggleDisabledStroke = Color3.fromRGB(140, 140, 140),
+	--	ToggleEnabledOuterStroke = Color3.fromRGB(100, 120, 140),
+	--	ToggleDisabledOuterStroke = Color3.fromRGB(120, 120, 130),
+
+	--	DropdownSelected = Color3.fromRGB(220, 230, 240),
+	--	DropdownUnselected = Color3.fromRGB(200, 210, 220),
+
+	--	InputBackground = Color3.fromRGB(220, 230, 240),
+	--	InputStroke = Color3.fromRGB(180, 190, 200),
+	--	PlaceholderColor = Color3.fromRGB(150, 150, 150)
+	--})
+
+	--local Keybind = Tab:CreateKeybind({
+	--	Name = "Keybind Example",
+	--	CurrentKeybind = "Q",
+	--	HoldToInteract = false,
+	--	Flag = "Keybind1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+	--	Callback = function(Keybind)
+	--		-- The function that takes place when the keybind is pressed
+	--		-- The variable (Keybind) is a boolean for whether the keybind is being held or not (HoldToInteract needs to be true)
+	--	end,
+	--})
+
+	--local Label = Tab:CreateLabel("Label Example")
+
+	--local Label2 = Tab:CreateLabel("Warning", 4483362458, Color3.fromRGB(255, 159, 49),  true)
+
+	--local Paragraph = Tab:CreateParagraph({Title = "Paragraph Example", Content = "Paragraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph Example"})
+end
+
+if CEnabled and Main:FindFirstChild('Notice') then
+	Main.Notice.BackgroundTransparency = 1
+	Main.Notice.Title.TextTransparency = 1
+	Main.Notice.Size = UDim2.new(0, 0, 0, 0)
+	Main.Notice.Position = UDim2.new(0.5, 0, 0, -100)
+	Main.Notice.Visible = true
+
+
+	TweenService:Create(Main.Notice, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut), {Size = UDim2.new(0, 280, 0, 35), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 0.5}):Play()
+	TweenService:Create(Main.Notice.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0.1}):Play()
+end
+-- AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA why :(
+--if not useStudio then
+--	task.spawn(loadWithTimeout, "https://raw.githubusercontent.com/SiriusSoftwareLtd/Sirius/refs/heads/request/boost.lua")
+--end
+
+task.delay(4, function()
+	LuvaLibrary.LoadConfiguration()
+	if Main:FindFirstChild('Notice') and Main.Notice.Visible then
+		TweenService:Create(Main.Notice, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut), {Size = UDim2.new(0, 100, 0, 25), Position = UDim2.new(0.5, 0, 0, -100), BackgroundTransparency = 1}):Play()
+		TweenService:Create(Main.Notice.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+
+		task.wait(0.5)
+		Main.Notice.Visible = false
+	end
+end)
+
+return LuvaLibrary
