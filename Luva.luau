@@ -202,26 +202,24 @@ function AntiDetection:SetupHookProtection()
     end
 end
 
-function AntiDetection:SetupInstanceProtection()
+function AntiDetection:ProtectInstance(instance)
+    if not instance then return end
 
-    local function ProtectInstance(instance)
-        if not instance then return end
+    instance.Name = GenerateDynamicName()
 
-        instance.Name = GenerateDynamicName()
+    self.ProtectedInstances[instance] = true
 
-        self.ProtectedInstances[instance] = true
-
-        if getrawmetatable and setreadonly then
-            local mt = getrawmetatable(game)
-            if mt then
-                local oldIndex = mt.__index
-                local oldNewIndex = mt.__newindex
-                local oldNamecall = mt.__namecall
-            end
+    if getrawmetatable and setreadonly then
+        local mt = getrawmetatable(game)
+        if mt then
+            local oldIndex = mt.__index
+            local oldNewIndex = mt.__newindex
+            local oldNamecall = mt.__namecall
         end
     end
+end
 
-    self.ProtectInstance = ProtectInstance
+function AntiDetection:SetupInstanceProtection()
 end
 
 function AntiDetection:EnableNameObfuscation()
