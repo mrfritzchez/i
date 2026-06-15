@@ -1486,27 +1486,27 @@ end
 
 do
 	local AssetPath = LuvaFolder.."/Assets"
-	local AssetBaseURL = "https://github.com/SiriusSoftwareLtd/Rayfield/blob/main/assets/"
+	local AssetBaseURL = "https://raw.githubusercontent.com/mrfritzchez/i/refs/heads/main/assets/"
 
 	local assetFiles = {
-		["111263549366178"] = AssetBaseURL.."111263549366178.png?raw=true",
-		["77891951053543"] = AssetBaseURL.."77891951053543.png?raw=true",
-		["78137979054938"] = AssetBaseURL.."78137979054938.png?raw=true",
-		["80503127983237"] = AssetBaseURL.."80503127983237.png?raw=true",
-		["10137832201"] = AssetBaseURL.."10137832201.png?raw=true",
-		["10137941941"] = AssetBaseURL.."10137941941.png?raw=true",
-		["11036884234"] = AssetBaseURL.."11036884234.png?raw=true",
-		["11413591840"] = AssetBaseURL.."11413591840.png?raw=true",
-		["11745872910"] = AssetBaseURL.."11745872910.png?raw=true",
-		["12577727209"] = AssetBaseURL.."12577727209.png?raw=true",
-		["18458939117"] = AssetBaseURL.."18458939117.png?raw=true",
-		["3259050989"] = AssetBaseURL.."3259050989.png?raw=true",
-		["3523728077"] = AssetBaseURL.."3523728077.png?raw=true",
-		["3602733521"] = AssetBaseURL.."3602733521.png?raw=true",
-		["IconChevronTopMedium"] = AssetBaseURL.."IconChevronTopMedium.png?raw=true",
-		["4483362458"] = AssetBaseURL.."4483362458.png?raw=true",
-		["5587865193"] = AssetBaseURL.."5587865193.png?raw=true",
-		["IconMagnifyingGlass2"] = AssetBaseURL.."IconMagnifyingGlass2.png?raw=true",
+		["111263549366178"] = AssetBaseURL.."111263549366178.png",
+		["77891951053543"] = AssetBaseURL.."77891951053543.png",
+		["78137979054938"] = AssetBaseURL.."78137979054938.png",
+		["80503127983237"] = AssetBaseURL.."80503127983237.png",
+		["10137832201"] = AssetBaseURL.."10137832201.png",
+		["10137941941"] = AssetBaseURL.."10137941941.png",
+		["11036884234"] = AssetBaseURL.."11036884234.png",
+		["11413591840"] = AssetBaseURL.."11413591840.png",
+		["11745872910"] = AssetBaseURL.."11745872910.png",
+		["12577727209"] = AssetBaseURL.."12577727209.png",
+		["18458939117"] = AssetBaseURL.."18458939117.png",
+		["3259050989"] = AssetBaseURL.."3259050989.png",
+		["3523728077"] = AssetBaseURL.."3523728077.png",
+		["3602733521"] = AssetBaseURL.."3602733521.png",
+		["IconChevronTopMedium"] = AssetBaseURL.."IconChevronTopMedium.png",
+		["4483362458"] = AssetBaseURL.."4483362458.png",
+		["5587865193"] = AssetBaseURL.."5587865193.png",
+		["IconMagnifyingGlass2"] = AssetBaseURL.."IconMagnifyingGlass2.png",
 	}
 
 	for id, _ in assetFiles do
@@ -1525,11 +1525,22 @@ do
 			ensureFolder(LuvaFolder)
 			ensureFolder(AssetPath)
 
+			-- a cached file from an earlier broken URL may contain a tiny 404/error
+			-- response instead of real PNG data — treat anything implausibly small
+			-- as "not downloaded" so it gets re-fetched with the corrected URL
+			local function isValidCache(path)
+				if not isfile(path) then return false end
+				local okRead, content = pcall(readfile, path)
+				if not okRead or type(content) ~= "string" then return false end
+				if #content < 256 then return false end
+				return true
+			end
+
 			-- skip ids we've already tried so a dead asset can't loop the loader forever
 			local attempted = {}
 			local function nextToFetch()
 				for id, _ in assetFiles do
-					if not attempted[id] and not isfile(AssetPath.."/"..tostring(id)..".png") then
+					if not attempted[id] and not isValidCache(AssetPath.."/"..tostring(id)..".png") then
 						return id
 					end
 				end
@@ -1541,9 +1552,9 @@ do
 					while true do
 						local id = nextToFetch()
 						if not id then break end
-						-- a failed request can hand back a nil/empty Body — never pass that to writefile
+						-- a failed request can hand back a nil/empty/short Body — never trust that as real PNG data
 						local ok, res = pcall(requestFunc, {Url = assetFiles[id], Method = "GET"})
-						if ok and type(res) == "table" and type(res.Body) == "string" and #res.Body > 0 then
+						if ok and type(res) == "table" and type(res.Body) == "string" and #res.Body >= 256 then
 							pcall(writefile, AssetPath.."/"..tostring(id)..".png", res.Body)
 						end
 						-- mark after the attempt so the poll waits for real downloads but still skips a dead asset
