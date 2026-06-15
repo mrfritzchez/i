@@ -1510,7 +1510,11 @@ do
 	}
 
 	for id, _ in assetFiles do
-		customAssets[tostring(id)] = ""
+		if tonumber(id) then
+			customAssets[tostring(id)] = "rbxassetid://"..tostring(id)
+		else
+			customAssets[tostring(id)] = ""
+		end
 	end
 
 	local hasCustomAsset = type(getcustomasset) == "function"
