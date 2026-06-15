@@ -1570,7 +1570,7 @@ do
 
 			for id, _ in assetFiles do
 				local success, asset = pcall(getcustomasset, AssetPath.."/"..tostring(id)..".png")
-				if success then
+				if success and asset then
 					customAssets[tostring(id)] = asset
 				else
 					warn("Luva | Failed to load custom asset: "..tostring(id).." - "..tostring(asset))
